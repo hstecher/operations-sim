@@ -14,10 +14,12 @@ ACQUISITION_FOV = 120  # Wide field of view in degrees
 SHWFS_SIZE = 500  # Changed to match other panels
 LENSLET_COUNT = 2  # Number of lenslets in each dimension
 SPOT_DEVIATION_MAX = 5  # Maximum pixel deviation for spots
-SIDEREAL_RATE = (360.0 / (24 * 60 * 60)) * 200  # Reduced from 1000x to 200x for slower motion
+# Make Earth's rotation more noticeable (speed up by factor of 500)
+SIDEREAL_RATE = (360.0 / (24 * 60 * 60)) * 500  # degrees per second
 YELLOW = (255, 255, 0)
 BUTTON_HEIGHT = 32
 BUTTON_WIDTH = 80
+SLEW_SPEED = 30  # degrees per second
 
 # Colors
 BLACK = (0, 0, 0)
@@ -32,8 +34,8 @@ pygame.display.set_caption("Telescope Simulator")
 
 class CelestialObject:
     def __init__(self, ra, dec, magnitude):
-        self.ra = ra
-        self.dec = dec
+        self.ra = ra  # Fixed RA position in sky
+        self.dec = dec  # Fixed Dec position in sky
         self.magnitude = magnitude
     
     def get_screen_position(self, center_ra, center_dec, fov, panel_rect, is_lenslet=False):
@@ -47,18 +49,17 @@ class CelestialObject:
         dec_diff = self.dec - center_dec
         
         if is_lenslet:
+            # For lenslets, we want to show the full FOV regardless of position
             x = panel_rect.left + ((ra_diff + fov/2) / fov) * panel_rect.width
             y = panel_rect.top + ((-dec_diff + fov/2) / fov) * panel_rect.height
         else:
+            # For main panels
             x = panel_rect.centerx + (ra_diff / fov) * panel_rect.width
             y = panel_rect.centery - (dec_diff / fov) * panel_rect.height
         
         return (x, y)
     
     def draw(self, screen, pos, scale=1.0):
-        pass
-    
-    def update(self, elapsed_seconds):
         pass
 
 class Star(CelestialObject):
@@ -112,7 +113,7 @@ class Moon(CelestialObject):
         self.planet = planet
         self.base_orbit_radius = random.uniform(2, 4)  # Base radius in degrees
         self.orbit_angle = random.uniform(0, 360)
-        self.orbit_speed = random.uniform(1, 3)  # degrees per second
+        self.orbit_speed = random.uniform(1.0, 2.0)  # Doubled the speed range from 0.5-1.0 to 1.0-2.0
         magnitude = random.uniform(3, 5)
         super().__init__(planet.ra, planet.dec, magnitude)
     
@@ -129,6 +130,7 @@ class Moon(CelestialObject):
         pygame.draw.circle(screen, WHITE, (int(moon_pos[0]), int(moon_pos[1])), radius)
     
     def update(self, elapsed_seconds):
+        # Use elapsed time delta instead of total simulation time
         self.orbit_angle = (self.orbit_angle + self.orbit_speed * elapsed_seconds) % 360
 
 class TextInput:
@@ -223,6 +225,9 @@ class TelescopeSimulator:
         # Add target coordinates
         self.target_ra = None
         self.target_dec = None
+        self.slewing = False
+        
+        self.simulation_time = 0  # Add total elapsed time tracker
     
     def get_stars_in_fov(self):
         """Return list of stars currently visible in telescope FOV with their positions"""
@@ -386,9 +391,6 @@ class TelescopeSimulator:
         self.slew_button.draw(screen, self.font)
 
     def handle_input(self):
-        keys = pygame.key.get_pressed()
-        movement_speed = 1
-        
         # Handle events for text inputs and button
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -418,16 +420,19 @@ class TelescopeSimulator:
                     if -90 <= new_dec <= 90:
                         self.target_dec = new_dec
                         
-                    # If both inputs are valid, slew to position
-                    self.telescope_ra = self.target_ra
-                    self.telescope_dec = self.target_dec
-                    self.tracking = True
+                    # Start slewing
+                    self.slewing = True
+                    self.tracking = False  # Disable tracking during slew
                 except (ValueError, TypeError):
                     pass  # Invalid input, ignore slew
                 
                 self.slew_button.clicked = False
         
-        if not self.tracking:  # Only allow manual control when not tracking
+        # Handle keyboard input outside event loop
+        if not self.tracking and not self.slewing:
+            keys = pygame.key.get_pressed()
+            movement_speed = 1
+            
             if keys[pygame.K_LEFT]:
                 self.telescope_ra = (self.telescope_ra - movement_speed) % 360
             if keys[pygame.K_RIGHT]:
@@ -436,20 +441,68 @@ class TelescopeSimulator:
                 self.telescope_dec = min(90, self.telescope_dec + movement_speed)
             if keys[pygame.K_DOWN]:
                 self.telescope_dec = max(-90, self.telescope_dec - movement_speed)
+        
         return True
+    
+    def update_slew(self, elapsed_seconds):
+        if not self.slewing:
+            return
+            
+        # Calculate distances to target
+        ra_diff = self.target_ra - self.telescope_ra
+        dec_diff = self.target_dec - self.telescope_dec
+        
+        # Handle RA wrap-around
+        if ra_diff > 180:
+            ra_diff -= 360
+        elif ra_diff < -180:
+            ra_diff += 360
+        
+        # Calculate total distance and movement this frame
+        total_distance = math.sqrt(ra_diff**2 + dec_diff**2)
+        max_movement = SLEW_SPEED * elapsed_seconds
+        
+        if total_distance <= max_movement:
+            # Close enough to snap to target
+            self.telescope_ra = self.target_ra
+            self.telescope_dec = self.target_dec
+        else:
+            # Calculate movement ratios for linear path
+            movement_ratio = max_movement / total_distance
+            ra_move = ra_diff * movement_ratio
+            dec_move = dec_diff * movement_ratio
+            
+            # Apply movements
+            self.telescope_ra = (self.telescope_ra + ra_move) % 360
+            self.telescope_dec = max(-90, min(90, self.telescope_dec + dec_move))
+        
+        # Check if we've reached the target
+        if self.telescope_ra == self.target_ra and self.telescope_dec == self.target_dec:
+            self.slewing = False
+            self.tracking = True  # Start tracking when slew completes
     
     def update_earth_rotation(self):
         current_time = pygame.time.get_ticks()
         elapsed_seconds = (current_time - self.last_update) / 1000.0
+        self.simulation_time += elapsed_seconds
         
-        # Update RA based on Earth's rotation
-        if not self.tracking:
-            rotation = SIDEREAL_RATE * elapsed_seconds
-            self.telescope_ra = (self.telescope_ra + rotation) % 360
+        # Update slewing first
+        self.update_slew(elapsed_seconds)
         
-        # Update all objects
+        # Only update telescope position with Earth's rotation if not slewing
+        if not self.slewing:
+            if self.tracking:
+                # Move telescope RA to track with sidereal rate
+                self.telescope_ra = (self.telescope_ra + SIDEREAL_RATE * elapsed_seconds) % 360
+            else:
+                # When not tracking, stars appear to move opposite to Earth's rotation
+                self.telescope_ra = (self.telescope_ra - SIDEREAL_RATE * elapsed_seconds) % 360
+        
+        # Update moon orbits with elapsed time
         for obj in self.objects:
-            obj.update(elapsed_seconds)
+            if isinstance(obj, Planet):
+                for moon in obj.moons:
+                    moon.update(elapsed_seconds)
         
         self.last_update = current_time
 
