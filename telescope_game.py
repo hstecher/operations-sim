@@ -299,13 +299,18 @@ class TelescopeSimulator:
         ra_text = f"Current RA: {ra_h:02d}h {ra_m:02d}m"
         dec_text = f"Current Dec: {dec_sign}{abs(dec_d):02d}° {dec_m:02d}'"
         
-        # Draw current position
+        # Draw current position (top left)
         ra_surface = self.font.render(ra_text, True, GRAY)
         dec_surface = self.font.render(dec_text, True, GRAY)
         screen.blit(ra_surface, (10, 10))
-        screen.blit(dec_surface, (200, 10))
+        screen.blit(dec_surface, (10, 40))  # Move Dec to next line
         
-        # Draw target coordinates if both RA and Dec are set
+        # Add tracking status (top right)
+        tracking_text = "Tracking: ON" if self.tracking else "Tracking: OFF"
+        tracking_surface = self.font.render(tracking_text, True, GRAY)
+        screen.blit(tracking_surface, (WINDOW_WIDTH - 200, 10))
+        
+        # Draw target coordinates if both RA and Dec are set (below input boxes)
         if self.target_ra is not None and self.target_dec is not None:
             try:
                 # Format target position
@@ -317,18 +322,20 @@ class TelescopeSimulator:
                 target_dec_m = int((abs(self.target_dec) - abs(target_dec_d)) * 60)
                 target_dec_sign = "+" if self.target_dec >= 0 else "-"
                 
-                target_text = f"Target: {target_ra_h:02d}h {target_ra_m:02d}m, {target_dec_sign}{abs(target_dec_d):02d}° {target_dec_m:02d}'"
-                target_surface = self.font.render(target_text, True, GRAY)
-                screen.blit(target_surface, (self.ra_input.rect.x, self.dec_input.rect.bottom + 20))
+                # Split target coordinates into two lines
+                target_ra_text = f"Target RA: {target_ra_h:02d}h {target_ra_m:02d}m"
+                target_dec_text = f"Target Dec: {target_dec_sign}{abs(target_dec_d):02d}° {target_dec_m:02d}'"
+                
+                ra_surface = self.font.render(target_ra_text, True, GRAY)
+                dec_surface = self.font.render(target_dec_text, True, GRAY)
+                
+                # Position below input boxes
+                screen.blit(ra_surface, (self.ra_input.rect.x, self.dec_input.rect.bottom + 20))
+                screen.blit(dec_surface, (self.ra_input.rect.x, self.dec_input.rect.bottom + 50))
+                
             except (TypeError, ValueError):
-                # If there's any error in formatting, clear the target coordinates
                 self.target_ra = None
                 self.target_dec = None
-        
-        # Add tracking status
-        tracking_text = "Tracking: ON" if self.tracking else "Tracking: OFF"
-        tracking_surface = self.font.render(tracking_text, True, GRAY)
-        screen.blit(tracking_surface, (400, 10))
     
     def draw(self, screen):
         pygame.draw.rect(screen, WHITE, self.telescope_panel, 2)
@@ -377,12 +384,6 @@ class TelescopeSimulator:
         self.ra_input.draw(screen, self.font)
         self.dec_input.draw(screen, self.font)
         self.slew_button.draw(screen, self.font)
-        
-        # Draw target coordinates if set
-        if self.target_ra is not None:
-            target_text = f"Target: {self.target_ra:.1f}°, {self.target_dec:.1f}°"
-            target_surface = self.font.render(target_text, True, GRAY)
-            screen.blit(target_surface, (self.ra_input.rect.x, self.dec_input.rect.bottom + 20))
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
