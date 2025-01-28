@@ -391,6 +391,20 @@ class TelescopeSimulator:
         self.slew_button.draw(screen, self.font)
 
     def handle_input(self):
+        # Handle keyboard input first
+        if not self.tracking and not self.slewing:
+            keys = pygame.key.get_pressed()
+            movement_speed = 1
+            
+            if keys[pygame.K_LEFT]:
+                self.telescope_ra = (self.telescope_ra + movement_speed) % 360  # Changed direction
+            if keys[pygame.K_RIGHT]:
+                self.telescope_ra = (self.telescope_ra - movement_speed) % 360  # Changed direction
+            if keys[pygame.K_UP]:
+                self.telescope_dec = min(90, self.telescope_dec + movement_speed)
+            if keys[pygame.K_DOWN]:
+                self.telescope_dec = max(-90, self.telescope_dec - movement_speed)
+        
         # Handle events for text inputs and button
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -427,20 +441,6 @@ class TelescopeSimulator:
                     pass  # Invalid input, ignore slew
                 
                 self.slew_button.clicked = False
-        
-        # Handle keyboard input outside event loop
-        if not self.tracking and not self.slewing:
-            keys = pygame.key.get_pressed()
-            movement_speed = 1
-            
-            if keys[pygame.K_LEFT]:
-                self.telescope_ra = (self.telescope_ra - movement_speed) % 360
-            if keys[pygame.K_RIGHT]:
-                self.telescope_ra = (self.telescope_ra + movement_speed) % 360
-            if keys[pygame.K_UP]:
-                self.telescope_dec = min(90, self.telescope_dec + movement_speed)
-            if keys[pygame.K_DOWN]:
-                self.telescope_dec = max(-90, self.telescope_dec - movement_speed)
         
         return True
     
