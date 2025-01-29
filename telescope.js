@@ -130,11 +130,23 @@ class TelescopeSimulator {
         this.telescopeCanvas = document.getElementById('telescope-panel');
         this.acquisitionCanvas = document.getElementById('acquisition-panel');
         this.shwfsCanvas = document.getElementById('shwfs-panel');
+        this.exposureCanvas = document.getElementById('exposure-panel');
 
         // Get contexts
         this.telescopeCtx = this.telescopeCanvas.getContext('2d');
         this.acquisitionCtx = this.acquisitionCanvas.getContext('2d');
         this.shwfsCtx = this.shwfsCanvas.getContext('2d');
+        this.exposureCtx = this.exposureCanvas.getContext('2d');
+
+        // Create an off-screen canvas for exposure accumulation
+        this.exposureBuffer = document.createElement('canvas');
+        this.exposureBuffer.width = this.exposureCanvas.width;
+        this.exposureBuffer.height = this.exposureCanvas.height;
+        this.exposureBufferCtx = this.exposureBuffer.getContext('2d', { willReadFrequently: true });
+        
+        // Clear the exposure buffer
+        this.exposureBufferCtx.fillStyle = '#000000';
+        this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
 
         // Initialize celestial objects
         this.objects = [];
@@ -177,14 +189,25 @@ class TelescopeSimulator {
         const decInput = document.getElementById('dec-input');
         const slewButton = document.getElementById('slew-button');
         const trackingButton = document.getElementById('tracking-button');
+        const exposureButton = document.getElementById('exposure-button');
 
         // Update tracking button text
         const updateTrackingButton = () => {
-            trackingButton.textContent = `Tracking: ${this.tracking ? 'ON' : 'OFF'}`;
+            trackingButton.textContent = `Follow: ${this.tracking ? 'ON' : 'OFF'}`;
         };
 
         // Initial button state
         updateTrackingButton();
+
+        // Exposure button handler
+        exposureButton.addEventListener('click', () => {
+            // Clear the exposure buffer
+            this.exposureBufferCtx.fillStyle = '#000000';
+            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+            
+            // Update button text
+            exposureButton.textContent = 'Clear Exposure';
+        });
 
         trackingButton.addEventListener('click', () => {
             this.tracking = !this.tracking;
@@ -293,10 +316,12 @@ class TelescopeSimulator {
         }
     }
 
-    drawPanel(ctx, fov, scale = 1.0) {
-        // Clear canvas
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    drawPanel(ctx, fov, scale = 1.0, isExposure = false) {
+        // Clear canvas if not exposure
+        if (!isExposure) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
 
         // Draw objects
         this.objects.forEach(obj => {
@@ -306,7 +331,14 @@ class TelescopeSimulator {
                 if (obj instanceof Planet) {
                     obj.draw(ctx, pos, ctx.canvas, fov, scale);
                 } else {
+                    // For exposure, draw stars with reduced opacity
+                    if (isExposure) {
+                        ctx.globalAlpha = 0.1;  // Accumulate slowly
+                    }
                     obj.draw(ctx, pos, scale);
+                    if (isExposure) {
+                        ctx.globalAlpha = 1.0;
+                    }
                 }
             }
         });
@@ -379,6 +411,15 @@ class TelescopeSimulator {
         });
     }
 
+    updateExposure() {
+        // Draw current telescope view onto exposure buffer
+        this.drawPanel(this.exposureBufferCtx, TELESCOPE_FOV, 1.0, true);
+        
+        // Copy buffer to visible canvas
+        this.exposureCtx.clearRect(0, 0, this.exposureCanvas.width, this.exposureCanvas.height);
+        this.exposureCtx.drawImage(this.exposureBuffer, 0, 0);
+    }
+
     animate() {
         const now = performance.now();
         const elapsedSeconds = (now - this.lastUpdate) / 1000;
@@ -399,6 +440,7 @@ class TelescopeSimulator {
         this.drawPanel(this.telescopeCtx, TELESCOPE_FOV, 1.0);
         this.drawPanel(this.acquisitionCtx, ACQUISITION_FOV, 0.5);
         this.drawSHWFS();
+        this.updateExposure();
         this.updateCoordinates();
 
         requestAnimationFrame(() => this.animate());
