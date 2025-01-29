@@ -195,16 +195,29 @@ class TelescopeSimulator {
             const moveSpeed = 1;
             switch(e.key) {
                 case 'ArrowLeft':
-                    this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;
-                    break;
                 case 'ArrowRight':
-                    this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;
-                    break;
                 case 'ArrowUp':
-                    this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
-                    break;
                 case 'ArrowDown':
-                    this.telescopeDec = Math.max(-90, this.telescopeDec - moveSpeed);
+                    // Any manual movement disables tracking
+                    this.tracking = false;
+                    switch(e.key) {
+                        case 'ArrowLeft':
+                            this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;
+                            break;
+                        case 'ArrowRight':
+                            this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;
+                            break;
+                        case 'ArrowUp':
+                            this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
+                            break;
+                        case 'ArrowDown':
+                            this.telescopeDec = Math.max(-90, this.telescopeDec - moveSpeed);
+                            break;
+                    }
+                    break;
+                case ' ': // Space key
+                    e.preventDefault();
+                    this.tracking = !this.tracking;
                     break;
             }
         });
@@ -239,7 +252,7 @@ class TelescopeSimulator {
 
     updateCoordinates() {
         const coordsDiv = document.getElementById('current-coords');
-        coordsDiv.textContent = `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`;
+        coordsDiv.textContent = `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)} | ${this.tracking ? 'TRACKING' : 'SIDEREAL'}`;
     }
 
     updateSlew(elapsedSeconds) {
@@ -268,7 +281,7 @@ class TelescopeSimulator {
             // Check if we've reached the target
             if (Math.abs(raDiff) < 0.1 && Math.abs(decDiff) < 0.1) {
                 this.slewing = false;
-                this.tracking = true;
+                // Don't automatically set tracking
             }
         }
     }
