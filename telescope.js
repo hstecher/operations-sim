@@ -172,6 +172,12 @@ class TelescopeSimulator {
         this.slewing = false;
         this.tracking = false;
 
+        // Add drift parameters
+        this.driftRa = 0;
+        this.driftDec = 0;
+        this.driftPhaseRa = Math.random() * Math.PI * 2;
+        this.driftPhaseDec = Math.random() * Math.PI * 2;
+        
         // Add key state tracking
         this.pressedKeys = new Set();
         
@@ -276,7 +282,7 @@ class TelescopeSimulator {
 
     updateCoordinates() {
         const coordsDiv = document.getElementById('current-coords');
-        coordsDiv.textContent = `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)} | ${this.tracking ? 'TRACKING' : 'SIDEREAL'}`;
+        coordsDiv.textContent = `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)} | ${this.tracking ? 'FOLLOWING' : 'SIDEREAL'}`;
     }
 
     updateSlew(elapsedSeconds) {
@@ -316,6 +322,22 @@ class TelescopeSimulator {
         }
     }
 
+    updateDrift(elapsedSeconds) {
+        if (this.tracking) {
+            // Pure random jitter with increased frequency but small amplitude
+            const jitterAmount = 0.04;  // doubled from 0.02 to 0.04
+            
+            // Generate random jitter with gaussian-like distribution
+            const getJitter = () => {
+                return ((Math.random() + Math.random()) / 2 - 0.5) * jitterAmount;
+            };
+            
+            // Apply jitter every frame regardless of elapsed time
+            this.telescopeRa = (this.telescopeRa + getJitter() + 360) % 360;
+            this.telescopeDec = Math.max(-90, Math.min(90, this.telescopeDec + getJitter()));
+        }
+    }
+
     drawPanel(ctx, fov, scale = 1.0, isExposure = false) {
         // Clear canvas if not exposure
         if (!isExposure) {
@@ -329,11 +351,17 @@ class TelescopeSimulator {
             if (pos.x >= 0 && pos.x <= ctx.canvas.width && 
                 pos.y >= 0 && pos.y <= ctx.canvas.height) {
                 if (obj instanceof Planet) {
-                    obj.draw(ctx, pos, ctx.canvas, fov, scale);
-                } else {
-                    // For exposure, draw stars with reduced opacity
                     if (isExposure) {
-                        ctx.globalAlpha = 0.1;  // Accumulate slowly
+                        ctx.globalAlpha = 0.05;  // Very faint for planets too
+                    }
+                    obj.draw(ctx, pos, ctx.canvas, fov, scale);
+                    if (isExposure) {
+                        ctx.globalAlpha = 1.0;
+                    }
+                } else {
+                    // For exposure, draw stars with very reduced opacity
+                    if (isExposure) {
+                        ctx.globalAlpha = 0.02;  // Much fainter, will build up over time
                     }
                     obj.draw(ctx, pos, scale);
                     if (isExposure) {
@@ -391,15 +419,15 @@ class TelescopeSimulator {
 
     // Add new method to handle continuous movement
     updateManualMovement(elapsedSeconds) {
-        const moveSpeed = 60 * elapsedSeconds; // degrees per second
+        const moveSpeed = 15 * elapsedSeconds;  // degrees per second
 
         this.pressedKeys.forEach(key => {
             switch(key) {
                 case 'ArrowLeft':
-                    this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;
+                    this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;  // reversed direction
                     break;
                 case 'ArrowRight':
-                    this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;
+                    this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;  // reversed direction
                     break;
                 case 'ArrowUp':
                     this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
@@ -430,6 +458,7 @@ class TelescopeSimulator {
         this.updateSlew(elapsedSeconds);
         this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
+        this.updateDrift(elapsedSeconds);
         this.objects.forEach(obj => {
             if (obj instanceof Planet) {
                 obj.update(elapsedSeconds);
