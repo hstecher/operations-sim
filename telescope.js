@@ -45,10 +45,7 @@ class CelestialObject {
 }
 
 class Star extends CelestialObject {
-    constructor() {
-        const ra = Math.random() * 360;
-        const dec = Math.random() * 180 - 90;
-        const magnitude = Math.random() * 5 + 1;
+    constructor(ra, dec, magnitude) {
         super(ra, dec, magnitude);
     }
 
@@ -62,12 +59,12 @@ class Star extends CelestialObject {
 }
 
 class Moon extends CelestialObject {
-    constructor(planet) {
-        super(planet.ra, planet.dec, Math.random() * 2 + 3);
+    constructor(planet, config) {
+        super(planet.ra, planet.dec, config.magnitude);
         this.planet = planet;
-        this.baseOrbitRadius = Math.random() * 2 + 2;
-        this.orbitAngle = Math.random() * 360;
-        this.orbitSpeed = Math.random() + 1.0;
+        this.baseOrbitRadius = config.orbitRadius;
+        this.orbitAngle = Math.random() * 360;  // Random starting position
+        this.orbitSpeed = 360 / (config.orbitPeriod * 3600);  // Convert period to degrees/second
     }
 
     getPosition(planetPos, canvas, fov) {
@@ -94,18 +91,11 @@ class Moon extends CelestialObject {
 }
 
 class Planet extends CelestialObject {
-    constructor(name, ra, dec) {
-        const magnitude = Math.random() * 2;
-        super(ra, dec, magnitude);
-        this.name = name;
-        this.color = PLANET_COLORS[name];
-        this.moons = [];
-        this.orbitSpeed = Math.random() * 0.4 + 0.1;
-
-        const numMoons = Math.floor(Math.random() * 4) + 1;
-        for (let i = 0; i < numMoons; i++) {
-            this.moons.push(new Moon(this));
-        }
+    constructor(config) {
+        super(config.ra, config.dec, config.magnitude);
+        this.name = config.name;
+        this.color = PLANET_COLORS[config.name];
+        this.moons = config.moons.map(moonConfig => new Moon(this, moonConfig));
     }
 
     draw(ctx, pos, canvas, fov, scale = 1.0) {
@@ -148,20 +138,17 @@ class TelescopeSimulator {
         this.exposureBufferCtx.fillStyle = '#000000';
         this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
 
-        // Initialize celestial objects
+        // Initialize celestial objects from configuration
         this.objects = [];
         
-        // Add stars
-        for (let i = 0; i < STAR_COUNT; i++) {
-            this.objects.push(new Star());
-        }
+        // Add stars from configuration
+        skyConfig.stars.forEach(starConfig => {
+            this.objects.push(new Star(starConfig.ra, starConfig.dec, starConfig.magnitude));
+        });
 
-        // Add planets
-        const planetNames = ['Mars', 'Jupiter', 'Saturn', 'Venus'];
-        planetNames.forEach(name => {
-            const ra = Math.random() * 360;
-            const dec = Math.random() * 120 - 60;  // Keep near ecliptic
-            this.objects.push(new Planet(name, ra, dec));
+        // Add planets from configuration
+        skyConfig.planets.forEach(planetConfig => {
+            this.objects.push(new Planet(planetConfig));
         });
 
         // Initialize telescope position
