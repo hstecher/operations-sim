@@ -160,6 +160,9 @@ class TelescopeSimulator {
         this.slewing = false;
         this.tracking = false;
 
+        // Add key state tracking
+        this.pressedKeys = new Set();
+        
         // Setup input handlers
         this.setupInputHandlers();
 
@@ -173,6 +176,20 @@ class TelescopeSimulator {
         const raInput = document.getElementById('ra-input');
         const decInput = document.getElementById('dec-input');
         const slewButton = document.getElementById('slew-button');
+        const trackingButton = document.getElementById('tracking-button');
+
+        // Update tracking button text
+        const updateTrackingButton = () => {
+            trackingButton.textContent = `Tracking: ${this.tracking ? 'ON' : 'OFF'}`;
+        };
+
+        // Initial button state
+        updateTrackingButton();
+
+        trackingButton.addEventListener('click', () => {
+            this.tracking = !this.tracking;
+            updateTrackingButton();
+        });
 
         slewButton.addEventListener('click', () => {
             const raValue = this.parseRA(raInput.value);
@@ -185,41 +202,25 @@ class TelescopeSimulator {
             }
         });
 
-        // Add keyboard controls
+        // Track keydown
         document.addEventListener('keydown', (e) => {
             // Prevent default scrolling for arrow keys
             if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                 e.preventDefault();
+                this.pressedKeys.add(e.key);
+                // Disable tracking when manually moving
+                this.tracking = false;
+                updateTrackingButton();
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                this.tracking = !this.tracking;
+                updateTrackingButton();
             }
-            
-            const moveSpeed = 1;
-            switch(e.key) {
-                case 'ArrowLeft':
-                case 'ArrowRight':
-                case 'ArrowUp':
-                case 'ArrowDown':
-                    // Any manual movement disables tracking
-                    this.tracking = false;
-                    switch(e.key) {
-                        case 'ArrowLeft':
-                            this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;
-                            break;
-                        case 'ArrowRight':
-                            this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;
-                            break;
-                        case 'ArrowUp':
-                            this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
-                            break;
-                        case 'ArrowDown':
-                            this.telescopeDec = Math.max(-90, this.telescopeDec - moveSpeed);
-                            break;
-                    }
-                    break;
-                case ' ': // Space key
-                    e.preventDefault();
-                    this.tracking = !this.tracking;
-                    break;
-            }
+        });
+
+        // Track keyup
+        document.addEventListener('keyup', (e) => {
+            this.pressedKeys.delete(e.key);
         });
     }
 
@@ -356,6 +357,28 @@ class TelescopeSimulator {
         });
     }
 
+    // Add new method to handle continuous movement
+    updateManualMovement(elapsedSeconds) {
+        const moveSpeed = 60 * elapsedSeconds; // degrees per second
+
+        this.pressedKeys.forEach(key => {
+            switch(key) {
+                case 'ArrowLeft':
+                    this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;
+                    break;
+                case 'ArrowRight':
+                    this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;
+                    break;
+                case 'ArrowUp':
+                    this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
+                    break;
+                case 'ArrowDown':
+                    this.telescopeDec = Math.max(-90, this.telescopeDec - moveSpeed);
+                    break;
+            }
+        });
+    }
+
     animate() {
         const now = performance.now();
         const elapsedSeconds = (now - this.lastUpdate) / 1000;
@@ -364,6 +387,7 @@ class TelescopeSimulator {
 
         // Update
         this.updateSlew(elapsedSeconds);
+        this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
         this.objects.forEach(obj => {
             if (obj instanceof Planet) {
