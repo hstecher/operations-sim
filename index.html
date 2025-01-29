@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telescope Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="input-group">
+                <label for="ra-input">Target RA (HH:MM)</label>
+                <input type="text" id="ra-input" placeholder="HH:MM">
+            </div>
+            <div class="input-group">
+                <label for="dec-input">Target Dec (deg)</label>
+                <input type="text" id="dec-input" placeholder="Degrees">
+            </div>
+            <button id="slew-button">Slew</button>
+        </div>
+        
+        <div class="panels">
+            <div class="panel">
+                <h3>Telescope View</h3>
+                <canvas id="telescope-panel" width="500" height="500"></canvas>
+            </div>
+            <div class="panel">
+                <h3>Acquisition View</h3>
+                <canvas id="acquisition-panel" width="500" height="500"></canvas>
+            </div>
+            <div class="panel">
+                <h3>SHWFS View</h3>
+                <canvas id="shwfs-panel" width="500" height="500"></canvas>
+            </div>
+        </div>
+
+        <div class="coordinates">
+            <div id="current-coords"></div>
+        </div>
+    </div>
+    <script src="telescope.js"></script>
+</body>
+</html> 
