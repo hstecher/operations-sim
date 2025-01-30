@@ -7,6 +7,10 @@ const LENSLET_COUNT = 2;
 const SPOT_DEVIATION_MAX = 5;
 const SIDEREAL_RATE = (360.0 / (24 * 60 * 60)) * 500;  // degrees per second
 const SLEW_SPEED = 30;  // degrees per second
+const SPECTRA_WIDTH = 500;  // Width of spectral display
+const SPECTRA_HEIGHT = 200;  // Height of spectral display
+const WAVELENGTH_MIN = 380;  // nm
+const WAVELENGTH_MAX = 780;  // nm
 
 // Planet colors
 const PLANET_COLORS = {
@@ -45,8 +49,13 @@ class CelestialObject {
 }
 
 class Star extends CelestialObject {
-    constructor(ra, dec, magnitude) {
-        super(ra, dec, magnitude);
+    constructor(starConfig) {
+        super(starConfig.ra, starConfig.dec, starConfig.magnitude);
+        this.spectra = starConfig.spectra || {
+            type: 'G2',  // Default to solar type
+            peaks: [486.1, 656.3],  // Hydrogen lines
+            intensities: [0.8, 0.9]
+        };
     }
 
     draw(ctx, pos, scale = 1.0) {
@@ -95,6 +104,11 @@ class Planet extends CelestialObject {
         super(config.ra, config.dec, config.magnitude);
         this.name = config.name;
         this.color = PLANET_COLORS[config.name];
+        this.spectra = config.spectra || {
+            type: 'Reflected',
+            peaks: [486.1, 656.3],
+            intensities: [0.7, 0.8]
+        };
         this.moons = config.moons.map(moonConfig => new Moon(this, moonConfig));
     }
 
@@ -143,7 +157,7 @@ class TelescopeSimulator {
         
         // Add stars from configuration
         skyConfig.stars.forEach(starConfig => {
-            this.objects.push(new Star(starConfig.ra, starConfig.dec, starConfig.magnitude));
+            this.objects.push(new Star(starConfig));
         });
 
         // Add planets from configuration
@@ -168,6 +182,9 @@ class TelescopeSimulator {
         // Add key state tracking
         this.pressedKeys = new Set();
         
+        // Add view mode state
+        this.viewMode = 'image'; // 'image' or 'spectra'
+        
         // Setup input handlers
         this.setupInputHandlers();
 
@@ -183,6 +200,7 @@ class TelescopeSimulator {
         const slewButton = document.getElementById('slew-button');
         const trackingButton = document.getElementById('tracking-button');
         const exposureButton = document.getElementById('exposure-button');
+        const viewModeButton = document.getElementById('view-mode-button');
 
         // Update tracking button text
         const updateTrackingButton = () => {
@@ -192,11 +210,21 @@ class TelescopeSimulator {
         // Initial button state
         updateTrackingButton();
 
-        // Exposure button handler
+        // Update view mode button text
+        const updateViewModeButton = () => {
+            viewModeButton.textContent = `View: ${this.viewMode.charAt(0).toUpperCase() + this.viewMode.slice(1)}`;
+        };
+
+        // Initial button states
+        updateViewModeButton();
+
+        // Modify exposure button handler to reset spectrum data
         exposureButton.addEventListener('click', () => {
             // Clear the exposure buffer
             this.exposureBufferCtx.fillStyle = '#000000';
             this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+            this.spectralAxesDrawn = false;
+            this.spectrumData = new Array(SPECTRA_WIDTH - 100).fill(0);  // Reset spectrum data
             
             // Update button text
             exposureButton.textContent = 'Clear Exposure';
@@ -237,6 +265,16 @@ class TelescopeSimulator {
         // Track keyup
         document.addEventListener('keyup', (e) => {
             this.pressedKeys.delete(e.key);
+        });
+
+        // View mode button handler
+        viewModeButton.addEventListener('click', () => {
+            this.viewMode = this.viewMode === 'image' ? 'spectra' : 'image';
+            updateViewModeButton();
+            
+            // Clear the exposure buffer when switching modes
+            this.exposureBufferCtx.fillStyle = '#000000';
+            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
         });
     }
 
@@ -426,12 +464,203 @@ class TelescopeSimulator {
         });
     }
 
+    drawSpectralLine(ctx, object, x, y, width, height) {
+        if (!object.spectra) return;
+
+        // Draw wavelength axis
+        ctx.strokeStyle = '#444444';
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+        ctx.lineTo(x + width, y + height);
+        ctx.stroke();
+
+        // Draw intensity axis
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + height);
+        ctx.stroke();
+
+        // Draw spectral peaks
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+
+        // Draw the spectral line
+        for (let i = 0; i < width; i++) {
+            const wavelength = WAVELENGTH_MIN + (i / width) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
+            let intensity = 0;
+
+            // Calculate intensity based on peaks
+            object.spectra.peaks.forEach((peak, idx) => {
+                const peakIntensity = object.spectra.intensities[idx];
+                const sigma = 2; // Width of spectral lines
+                intensity += peakIntensity * Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
+            });
+
+            const px = x + i;
+            const py = y + height - (intensity * height);
+            if (i === 0) {
+                ctx.moveTo(px, py);
+            } else {
+                ctx.lineTo(px, py);
+            }
+        }
+        ctx.stroke();
+
+        // Draw spectral type and features if available
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px Arial';
+        if (object.spectra.type) {
+            ctx.fillText(`Type: ${object.spectra.type}`, x + 5, y + 15);
+        }
+        if (object.spectra.features) {
+            ctx.fillText(`Features: ${object.spectra.features.join(', ')}`, x + 5, y + 30);
+        }
+    }
+
+    // New method to calculate combined spectrum
+    drawCombinedSpectrum(ctx, objects, x, y, width, height) {
+        if (objects.length === 0) return;
+
+        // Calculate spectrum contribution from all objects
+        const intensityData = new Array(width).fill(0);
+
+        // First calculate the base continuum level
+        objects.forEach(obj => {
+            const brightness = Math.pow(10, -obj.magnitude/2.5);
+            // Add a small continuum contribution from each object
+            for (let i = 0; i < width; i++) {
+                intensityData[i] += brightness * 0.01;
+            }
+        });
+
+        // Then add spectral lines at full height
+        objects.forEach(obj => {
+            if (!obj.spectra) return;
+            
+            const brightness = Math.pow(10, -obj.magnitude/2.5);
+            
+            obj.spectra.peaks.forEach((peak, idx) => {
+                const peakIntensity = obj.spectra.intensities[idx];
+                const peakPos = Math.floor(((peak - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN)) * width);
+                
+                // Add gaussian profile around each peak
+                for (let i = Math.max(0, peakPos - 10); i < Math.min(width, peakPos + 10); i++) {
+                    const wavelength = WAVELENGTH_MIN + (i / width) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
+                    const sigma = 1; // Narrower lines
+                    const lineProfile = Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
+                    intensityData[i] += brightness * peakIntensity * lineProfile;
+                }
+            });
+        });
+
+        // Draw the spectral line
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+
+        intensityData.forEach((intensity, i) => {
+            const px = x + i;
+            const py = y + height - (intensity * height * 0.5); // Adjust scale factor for better visibility
+            if (i === 0) {
+                ctx.moveTo(px, py);
+            } else {
+                ctx.lineTo(px, py);
+            }
+        });
+        ctx.stroke();
+    }
+
     updateExposure() {
-        // Draw current telescope view onto exposure buffer
-        this.drawPanel(this.exposureBufferCtx, TELESCOPE_FOV, 1.0, true);
-        
+        const visibleObjects = this.objects.filter(obj => {
+            const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.telescopeCanvas);
+            return pos.x >= 0 && pos.x < this.telescopeCanvas.width && 
+                   pos.y >= 0 && pos.y < this.telescopeCanvas.height;
+        });
+
+        if (this.viewMode === 'image') {
+            // Draw current telescope view onto exposure buffer with low opacity
+            visibleObjects.forEach(obj => {
+                const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.exposureBuffer);
+                if (obj instanceof Planet) {
+                    this.exposureBufferCtx.globalAlpha = 0.05;
+                    obj.draw(this.exposureBufferCtx, pos, this.exposureBuffer, TELESCOPE_FOV, 1.0);
+                } else {
+                    this.exposureBufferCtx.globalAlpha = 0.02;
+                    obj.draw(this.exposureBufferCtx, pos, 1.0);
+                }
+                this.exposureBufferCtx.globalAlpha = 1.0;
+            });
+        } else {
+            // Initialize the spectrum data array if it doesn't exist
+            if (!this.spectrumData) {
+                this.spectrumData = new Array(SPECTRA_WIDTH - 100).fill(0);
+            }
+
+            // Draw simple axes if buffer is empty
+            if (!this.spectralAxesDrawn) {
+                this.exposureBufferCtx.fillStyle = '#000000';
+                this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+                
+                // Draw basic wavelength axis
+                this.exposureBufferCtx.strokeStyle = '#333333';
+                this.exposureBufferCtx.beginPath();
+                this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
+                this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 50);
+                this.exposureBufferCtx.stroke();
+                
+                this.spectralAxesDrawn = true;
+            }
+
+            // Add each object's contribution to the spectrum data
+            visibleObjects.forEach(obj => {
+                // Every object contributes to the spectrum
+                const brightness = Math.pow(10, -obj.magnitude/2.5);
+                
+                // Add spectral lines
+                obj.spectra.peaks.forEach((peak, idx) => {
+                    const peakIntensity = obj.spectra.intensities[idx] * brightness;
+                    const peakPos = Math.floor(((peak - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN)) * (SPECTRA_WIDTH - 100));
+                    
+                    // Add gaussian profile around each peak
+                    for (let i = Math.max(0, peakPos - 5); i < Math.min(SPECTRA_WIDTH - 100, peakPos + 5); i++) {
+                        const wavelength = WAVELENGTH_MIN + (i / (SPECTRA_WIDTH - 100)) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
+                        const sigma = 0.5; // Narrower lines for better definition
+                        const contribution = Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
+                        this.spectrumData[i] += contribution * 0.005; // Smaller increment for smoother growth
+                    }
+                });
+            });
+
+            // Clear and redraw the spectrum
+            this.exposureBufferCtx.fillStyle = '#000000';
+            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+            
+            // Draw the wavelength axis
+            this.exposureBufferCtx.strokeStyle = '#333333';
+            this.exposureBufferCtx.beginPath();
+            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
+            this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 50);
+            this.exposureBufferCtx.stroke();
+
+            // Draw the accumulated spectrum
+            this.exposureBufferCtx.strokeStyle = '#FFFFFF';
+            this.exposureBufferCtx.beginPath();
+            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
+
+            for (let i = 0; i < this.spectrumData.length; i++) {
+                const x = 50 + i;
+                const y = SPECTRA_HEIGHT - 50 - (this.spectrumData[i] * (SPECTRA_HEIGHT - 100));
+                if (i === 0) {
+                    this.exposureBufferCtx.moveTo(x, y);
+                } else {
+                    this.exposureBufferCtx.lineTo(x, y);
+                }
+            }
+            this.exposureBufferCtx.stroke();
+        }
+
         // Copy buffer to visible canvas
-        this.exposureCtx.clearRect(0, 0, this.exposureCanvas.width, this.exposureCanvas.height);
         this.exposureCtx.drawImage(this.exposureBuffer, 0, 0);
     }
 
