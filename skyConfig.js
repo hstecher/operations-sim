@@ -63,6 +63,72 @@ const skyConfig = {
                 dec: Math.max(-90, Math.min(90, dec)),
                 magnitude: 4 + Math.random() * Math.random() * 2  // Mostly dimmer stars, some brighter
             };
+        }),
+
+        // Galaxy clusters
+        // M31 (Andromeda Galaxy) - large nearby spiral
+        ...Array.from({ length: 100 }, (_, i) => {
+            const baseRa = 10.7;  // Andromeda center
+            const baseDec = 41.3;
+            const r = Math.random() * Math.random() * 0.5; // Concentrated within 0.5 degrees
+            const theta = Math.random() * 2 * Math.PI;
+            return {
+                ra: baseRa + r * Math.cos(theta),
+                dec: baseDec + r * Math.sin(theta),
+                magnitude: 6 + Math.random() * 1.5  // Very dim stars
+            };
+        }),
+
+        // M87 (Virgo Cluster core) - elliptical galaxy
+        ...Array.from({ length: 50 }, (_, i) => {
+            const baseRa = 187.7;
+            const baseDec = 12.4;
+            const r = Math.random() * Math.random() * 0.2; // More compact
+            const theta = Math.random() * 2 * Math.PI;
+            return {
+                ra: baseRa + r * Math.cos(theta),
+                dec: baseDec + r * Math.sin(theta),
+                magnitude: 7 + Math.random()  // Even dimmer
+            };
+        }),
+
+        // M13 (Hercules Globular Cluster) - dense star cluster
+        ...Array.from({ length: 75 }, (_, i) => {
+            const baseRa = 250.4;
+            const baseDec = 36.5;
+            const r = Math.random() * Math.random() * Math.random() * 0.15; // Very concentrated
+            const theta = Math.random() * 2 * Math.PI;
+            return {
+                ra: baseRa + r * Math.cos(theta),
+                dec: baseDec + r * Math.sin(theta),
+                magnitude: 6.5 + Math.random() * 1.0  // Mix of brightnesses
+            };
+        }),
+
+        // Pleiades (M45) - open cluster
+        ...Array.from({ length: 40 }, (_, i) => {
+            const baseRa = 56.7;
+            const baseDec = 24.1;
+            const r = Math.random() * 0.8; // More spread out
+            const theta = Math.random() * 2 * Math.PI;
+            return {
+                ra: baseRa + r * Math.cos(theta),
+                dec: baseDec + r * Math.sin(theta),
+                magnitude: 5 + Math.random() * 2  // Mix of bright and dim
+            };
+        }),
+
+        // Coma Berenices Cluster - loose open cluster
+        ...Array.from({ length: 30 }, (_, i) => {
+            const baseRa = 186.0;
+            const baseDec = 26.1;
+            const r = Math.random() * 1.0; // Very spread out
+            const theta = Math.random() * 2 * Math.PI;
+            return {
+                ra: baseRa + r * Math.cos(theta),
+                dec: baseDec + r * Math.sin(theta),
+                magnitude: 5.5 + Math.random() * 1.5
+            };
         })
     ],
 
