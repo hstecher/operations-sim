@@ -53,8 +53,24 @@ class Star extends CelestialObject {
         super(starConfig.ra, starConfig.dec, starConfig.magnitude);
         this.spectra = starConfig.spectra || {
             type: 'G2',  // Default to solar type
-            peaks: [486.1, 656.3],  // Hydrogen lines
-            intensities: [0.8, 0.9]
+            peaks: [
+                393.4 + Math.random() * 2, // Ca K
+                396.8 + Math.random() * 2, // Ca H
+                410.2 + Math.random() * 2, // Hδ
+                434.0 + Math.random() * 2, // Hγ
+                486.1 + Math.random() * 2, // Hβ
+                516.7 + Math.random() * 2, // Mg
+                656.3 + Math.random() * 2  // Hα
+            ],
+            intensities: [
+                0.7 + Math.random() * 0.3,  // Ca K
+                0.75 + Math.random() * 0.25, // Ca H
+                0.6 + Math.random() * 0.3,  // Hδ
+                0.7 + Math.random() * 0.3,  // Hγ
+                0.8 + Math.random() * 0.2,  // Hβ
+                0.65 + Math.random() * 0.25, // Mg
+                0.85 + Math.random() * 0.15  // Hα
+            ]
         };
     }
 
@@ -604,11 +620,11 @@ class TelescopeSimulator {
                 this.exposureBufferCtx.fillStyle = '#000000';
                 this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
                 
-                // Draw basic wavelength axis
+                // Draw basic wavelength axis - moved closer to bottom (changed from SPECTRA_HEIGHT - 50 to SPECTRA_HEIGHT - 20)
                 this.exposureBufferCtx.strokeStyle = '#333333';
                 this.exposureBufferCtx.beginPath();
-                this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
-                this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 50);
+                this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
+                this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 20);
                 this.exposureBufferCtx.stroke();
                 
                 this.spectralAxesDrawn = true;
@@ -629,7 +645,7 @@ class TelescopeSimulator {
                         const wavelength = WAVELENGTH_MIN + (i / (SPECTRA_WIDTH - 100)) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
                         const sigma = 0.5; // Narrower lines for better definition
                         const contribution = Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
-                        this.spectrumData[i] += contribution * 0.005; // Smaller increment for smoother growth
+                        this.spectrumData[i] += contribution * 0.0005; // Reduced from 0.005 to 0.0005 for slower growth
                     }
                 });
             });
@@ -638,21 +654,21 @@ class TelescopeSimulator {
             this.exposureBufferCtx.fillStyle = '#000000';
             this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
             
-            // Draw the wavelength axis
+            // Draw the wavelength axis - moved closer to bottom
             this.exposureBufferCtx.strokeStyle = '#333333';
             this.exposureBufferCtx.beginPath();
-            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
-            this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 50);
+            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
+            this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 20);
             this.exposureBufferCtx.stroke();
 
-            // Draw the accumulated spectrum
+            // Draw the accumulated spectrum - moved closer to bottom
             this.exposureBufferCtx.strokeStyle = '#FFFFFF';
             this.exposureBufferCtx.beginPath();
-            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 50);
+            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
 
             for (let i = 0; i < this.spectrumData.length; i++) {
                 const x = 50 + i;
-                const y = SPECTRA_HEIGHT - 50 - (this.spectrumData[i] * (SPECTRA_HEIGHT - 100));
+                const y = SPECTRA_HEIGHT - 20 - (this.spectrumData[i] * (SPECTRA_HEIGHT - 40));
                 if (i === 0) {
                     this.exposureBufferCtx.moveTo(x, y);
                 } else {
