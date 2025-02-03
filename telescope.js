@@ -73,7 +73,9 @@ class Moon extends CelestialObject {
         this.planet = planet;
         this.baseOrbitRadius = config.orbitRadius;
         this.orbitAngle = Math.random() * 360;  // Random starting position
-        this.orbitSpeed = 360 / (config.orbitPeriod * 3600);  // Convert period to degrees/second
+        // Convert period from hours to seconds and calculate degrees per second
+        // Multiply by 100 to make the motion much more visible
+        this.orbitSpeed = (360 / (config.orbitPeriod * 3600)) * 100;
     }
 
     getPosition(planetPos, canvas, fov) {

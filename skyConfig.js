@@ -305,8 +305,32 @@ const skyConfig = {
                 features: ['CO2', 'Fe2O3', 'H2O', 'O2']
             },
             moons: [
-                { orbitRadius: 2.5, orbitPeriod: 7.7, magnitude: 4.5 },
-                { orbitRadius: 3.8, orbitPeriod: 30.3, magnitude: 4.8 }
+                { 
+                    orbitRadius: 2.5, 
+                    orbitPeriod: 7.7, 
+                    magnitude: 4.5,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.5, 0.55, 0.6, 0.7, 0.75, 0.8, 0.75,
+                                    0.7, 0.65, 0.6, 0.55, 0.7, 0.65],
+                        features: ['Fe2O3', 'SiO2']
+                    }
+                },
+                { 
+                    orbitRadius: 3.8, 
+                    orbitPeriod: 30.3, 
+                    magnitude: 4.8,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.45, 0.5, 0.55, 0.65, 0.7, 0.75, 0.7,
+                                    0.65, 0.6, 0.55, 0.5, 0.65, 0.6],
+                        features: ['Fe2O3', 'SiO2']
+                    }
+                }
             ]
         },
         {
@@ -327,10 +351,58 @@ const skyConfig = {
                 features: ['CH4', 'NH3', 'H2', 'He', 'C2H2']
             },
             moons: [
-                { orbitRadius: 2.2, orbitPeriod: 1.8, magnitude: 3.8 },
-                { orbitRadius: 3.1, orbitPeriod: 3.6, magnitude: 3.9 },
-                { orbitRadius: 3.9, orbitPeriod: 7.2, magnitude: 4.0 },
-                { orbitRadius: 4.8, orbitPeriod: 16.7, magnitude: 4.1 }
+                { 
+                    orbitRadius: 2.2, 
+                    orbitPeriod: 1.8, 
+                    magnitude: 3.8,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.6, 0.65, 0.7, 0.8, 0.85, 0.9, 0.85,
+                                    0.8, 0.75, 0.7, 0.65, 0.8, 0.75],
+                        features: ['H2O', 'SiO2']
+                    }
+                },
+                { 
+                    orbitRadius: 3.1, 
+                    orbitPeriod: 3.6, 
+                    magnitude: 3.9,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.55, 0.6, 0.65, 0.75, 0.8, 0.85, 0.8,
+                                    0.75, 0.7, 0.65, 0.6, 0.75, 0.7],
+                        features: ['H2O', 'SO2']
+                    }
+                },
+                { 
+                    orbitRadius: 3.9, 
+                    orbitPeriod: 7.2, 
+                    magnitude: 4.0,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.5, 0.55, 0.6, 0.7, 0.75, 0.8, 0.75,
+                                    0.7, 0.65, 0.6, 0.55, 0.7, 0.65],
+                        features: ['H2O', 'CO2']
+                    }
+                },
+                { 
+                    orbitRadius: 4.8, 
+                    orbitPeriod: 16.7, 
+                    magnitude: 4.1,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.45, 0.5, 0.55, 0.65, 0.7, 0.75, 0.7,
+                                    0.65, 0.6, 0.55, 0.5, 0.65, 0.6],
+                        features: ['H2O', 'CH4']
+                    }
+                }
             ]
         },
         {
@@ -351,9 +423,45 @@ const skyConfig = {
                 features: ['CH4', 'NH3', 'C2H6', 'H2', 'He']
             },
             moons: [
-                { orbitRadius: 2.4, orbitPeriod: 4.5, magnitude: 4.2 },
-                { orbitRadius: 3.3, orbitPeriod: 15.9, magnitude: 4.3 },
-                { orbitRadius: 4.2, orbitPeriod: 21.3, magnitude: 4.4 }
+                { 
+                    orbitRadius: 2.4, 
+                    orbitPeriod: 4.5, 
+                    magnitude: 4.2,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.55, 0.6, 0.65, 0.75, 0.8, 0.85, 0.8,
+                                    0.75, 0.7, 0.65, 0.6, 0.75, 0.7],
+                        features: ['H2O', 'CH4']
+                    }
+                },
+                { 
+                    orbitRadius: 3.3, 
+                    orbitPeriod: 15.9, 
+                    magnitude: 4.3,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.5, 0.55, 0.6, 0.7, 0.75, 0.8, 0.75,
+                                    0.7, 0.65, 0.6, 0.55, 0.7, 0.65],
+                        features: ['H2O', 'NH3']
+                    }
+                },
+                { 
+                    orbitRadius: 4.2, 
+                    orbitPeriod: 21.3, 
+                    magnitude: 4.4,
+                    spectra: {
+                        type: 'Reflected',
+                        peaks: [438.5, 447.1, 486.1, 515.3, 526.5, 532.8, 553.5, 
+                               588.9, 600.0, 619.7, 634.0, 656.3, 670.8],
+                        intensities: [0.45, 0.5, 0.55, 0.65, 0.7, 0.75, 0.7,
+                                    0.65, 0.6, 0.55, 0.5, 0.65, 0.6],
+                        features: ['H2O', 'CO2']
+                    }
+                }
             ]
         },
         {
