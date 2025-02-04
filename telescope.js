@@ -1,5 +1,6 @@
 // Constants
-const STAR_COUNT = 200;
+const STAR_COUNT = 1000;
+const SATELLITE_COUNT = 3;  // Add a few satellites
 const TELESCOPE_FOV = 5;  // degrees
 const ACQUISITION_FOV = 120;  // degrees
 const SHWFS_SIZE = 500;
@@ -11,6 +12,10 @@ const SPECTRA_WIDTH = 500;  // Width of spectral display
 const SPECTRA_HEIGHT = 200;  // Height of spectral display
 const WAVELENGTH_MIN = 380;  // nm
 const WAVELENGTH_MAX = 780;  // nm
+
+// Add satellite parameters
+const SATELLITE_SPEED = 0.5;  // degrees per second
+const SATELLITE_MAGNITUDE = 2;  // Fairly bright
 
 // Planet colors
 const PLANET_COLORS = {
@@ -51,8 +56,28 @@ class CelestialObject {
 class Star extends CelestialObject {
     constructor(starConfig) {
         super(starConfig.ra, starConfig.dec, starConfig.magnitude);
+        // Add color based on spectral type
+        const spectralColors = {
+            'O': '#9BB0FF',  // Blue
+            'B': '#AAC0FF',  // Blue-white
+            'A': '#CAD7FF',  // White
+            'F': '#F8F7FF',  // Yellow-white
+            'G': '#FFF4EA',  // Yellow (Sun-like)
+            'K': '#FFD2A1',  // Orange
+            'M': '#FFB56C'   // Red
+        };
+        
+        this.spectralType = starConfig.spectralType || 
+            ['O', 'B', 'A', 'F', 'G', 'K', 'M'][Math.floor(Math.random() * 7)];
+        this.color = spectralColors[this.spectralType];
+        
+        // Add twinkle effect
+        this.twinklePhase = Math.random() * Math.PI * 2;
+        this.twinkleSpeed = 2 + Math.random() * 2;
+
+        // Spectral data
         this.spectra = starConfig.spectra || {
-            type: 'G2',  // Default to solar type
+            type: this.spectralType,
             peaks: [
                 393.4 + Math.random() * 2, // Ca K
                 396.8 + Math.random() * 2, // Ca H
@@ -75,11 +100,51 @@ class Star extends CelestialObject {
     }
 
     draw(ctx, pos, scale = 1.0) {
-        const radius = Math.max(1, (4 - this.magnitude) * scale);
+        const baseRadius = Math.max(1.5, (6 - this.magnitude) * scale);  // Increased from 4 to 6 for brighter stars
+        
+        // Add twinkle effect
+        const twinkle = Math.sin(this.twinklePhase) * 0.3 + 0.8;  // Changed from 0.7 to 0.8 for higher minimum brightness
+        const radius = baseRadius * twinkle;
+        
+        // Draw main star
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#FFFFFF';
+        
+        // Create gradient for more realistic star appearance
+        const gradient = ctx.createRadialGradient(
+            pos.x, pos.y, 0,
+            pos.x, pos.y, radius
+        );
+        gradient.addColorStop(0, this.color);
+        gradient.addColorStop(0.7, this.color);  // Added middle stop for more intense core
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        
+        ctx.fillStyle = gradient;
         ctx.fill();
+
+        // Add diffraction spikes for brighter stars
+        if (this.magnitude < 3 && scale > 0.5) {  // Changed from 2 to 3 to show spikes on more stars
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 0.5;
+            const spikeLength = radius * 2.5;  // Increased from 2 to 2.5
+            
+            // Draw spikes
+            for (let angle = 0; angle < Math.PI; angle += Math.PI / 4) {
+                ctx.beginPath();
+                ctx.moveTo(
+                    pos.x + Math.cos(angle) * radius,
+                    pos.y + Math.sin(angle) * radius
+                );
+                ctx.lineTo(
+                    pos.x + Math.cos(angle) * spikeLength,
+                    pos.y + Math.sin(angle) * spikeLength
+                );
+                ctx.stroke();
+            }
+        }
+
+        // Update twinkle phase
+        this.twinklePhase += this.twinkleSpeed * 0.05;
     }
 }
 
@@ -117,25 +182,218 @@ class Moon extends CelestialObject {
     }
 }
 
+class Satellite extends CelestialObject {
+    constructor() {
+        // Random starting position near the ecliptic
+        const ra = Math.random() * 360;
+        const dec = (Math.random() - 0.5) * 40;  // Within 20 degrees of ecliptic
+        super(ra, dec, SATELLITE_MAGNITUDE);
+        
+        // Random direction of motion
+        this.direction = Math.random() * Math.PI * 2;
+        this.speed = SATELLITE_SPEED * (0.8 + Math.random() * 0.4);  // Varying speeds
+        
+        // Flashing effect
+        this.flashPhase = Math.random() * Math.PI * 2;
+        this.flashPeriod = 1 + Math.random() * 2;  // 1-3 second period
+    }
+
+    update(elapsedSeconds) {
+        // Update position based on direction and speed
+        const distance = this.speed * elapsedSeconds;
+        this.ra = (this.ra + distance * Math.cos(this.direction) + 360) % 360;
+        this.dec = Math.max(-90, Math.min(90, 
+            this.dec + distance * Math.sin(this.direction)
+        ));
+
+        // Update flash phase
+        this.flashPhase += (Math.PI * 2 * elapsedSeconds) / this.flashPeriod;
+    }
+
+    draw(ctx, pos, scale = 1.0) {
+        // Calculate flash intensity (creates blinking effect)
+        const flash = Math.sin(this.flashPhase) * 0.5 + 0.5;
+        
+        // Draw satellite
+        const radius = Math.max(1, 2 * scale);
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+        
+        // Create gradient with flash effect
+        const gradient = ctx.createRadialGradient(
+            pos.x, pos.y, 0,
+            pos.x, pos.y, radius * 2
+        );
+        const color = `rgba(255, 255, 255, ${flash})`;
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(0.5, color);
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
+}
+
 class Planet extends CelestialObject {
     constructor(config) {
         super(config.ra, config.dec, config.magnitude);
         this.name = config.name;
         this.color = PLANET_COLORS[config.name];
+        this.hasRings = config.name === 'Saturn';
+        this.features = config.features || this.generateFeatures();
+        
         this.spectra = config.spectra || {
             type: 'Reflected',
             peaks: [486.1, 656.3],
             intensities: [0.7, 0.8]
         };
+        
         this.moons = config.moons.map(moonConfig => new Moon(this, moonConfig));
+    }
+
+    generateFeatures() {
+        const features = [];
+        switch(this.name) {
+            case 'Jupiter':
+                // Generate bands
+                for (let i = 0; i < 4; i++) {
+                    features.push({
+                        type: 'band',
+                        y: -0.6 + i * 0.4,
+                        width: 0.2,
+                        color: `rgba(255, 200, 100, ${0.3 + Math.random() * 0.3})`
+                    });
+                }
+                // Add Great Red Spot
+                features.push({
+                    type: 'spot',
+                    x: 0.3,
+                    y: -0.2,
+                    size: 0.3,
+                    color: '#FF6B4A'
+                });
+                break;
+            case 'Saturn':
+                // Ring parameters
+                features.push({
+                    type: 'rings',
+                    innerRadius: 1.2,
+                    outerRadius: 2.0,
+                    color: '#FFDC96'
+                });
+                break;
+            case 'Mars':
+                // Add polar caps and dark regions
+                features.push({
+                    type: 'cap',
+                    y: -0.8,
+                    size: 0.2,
+                    color: '#FFFFFF'
+                });
+                features.push({
+                    type: 'cap',
+                    y: 0.8,
+                    size: 0.2,
+                    color: '#FFFFFF'
+                });
+                // Dark regions
+                for (let i = 0; i < 3; i++) {
+                    features.push({
+                        type: 'region',
+                        x: Math.random() * 1.6 - 0.8,
+                        y: Math.random() * 1.2 - 0.6,
+                        size: 0.2 + Math.random() * 0.3,
+                        color: '#AA4400'
+                    });
+                }
+                break;
+        }
+        return features;
     }
 
     draw(ctx, pos, canvas, fov, scale = 1.0) {
         const radius = Math.max(2, (6 - this.magnitude) * scale);
+        
+        // Save context for features
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+
+        // Draw planet features
+        this.features.forEach(feature => {
+            switch(feature.type) {
+                case 'band':
+                    ctx.fillStyle = feature.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, feature.y * radius, radius, feature.width * radius, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'spot':
+                    ctx.fillStyle = feature.color;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        feature.x * radius,
+                        feature.y * radius,
+                        feature.size * radius,
+                        feature.size * radius * 0.6,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                    break;
+                case 'rings':
+                    // Draw rings behind planet
+                    ctx.strokeStyle = feature.color;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0,
+                        radius * feature.outerRadius,
+                        radius * feature.outerRadius * 0.3,
+                        0, Math.PI, Math.PI * 2);
+                    ctx.stroke();
+                    break;
+                case 'cap':
+                    ctx.fillStyle = feature.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, feature.y * radius,
+                        radius * 0.8,
+                        feature.size * radius,
+                        0, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'region':
+                    ctx.fillStyle = feature.color;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        feature.x * radius,
+                        feature.y * radius,
+                        feature.size * radius,
+                        feature.size * radius * 0.7,
+                        0, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                    break;
+            }
+        });
+
+        // Draw main planet body
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.fill();
+
+        // Draw rings in front
+        if (this.hasRings) {
+            const rings = this.features.find(f => f.type === 'rings');
+            ctx.strokeStyle = rings.color;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(0, 0,
+                radius * rings.outerRadius,
+                radius * rings.outerRadius * 0.3,
+                0, 0, Math.PI);
+            ctx.stroke();
+        }
+
+        ctx.restore();
 
         // Draw moons
         this.moons.forEach(moon => moon.draw(ctx, pos, canvas, fov, scale));
@@ -182,6 +440,11 @@ class TelescopeSimulator {
         skyConfig.planets.forEach(planetConfig => {
             this.objects.push(new Planet(planetConfig));
         });
+
+        // Add satellites
+        for (let i = 0; i < SATELLITE_COUNT; i++) {
+            this.objects.push(new Satellite());
+        }
 
         // Initialize telescope position
         this.telescopeRa = 180;
@@ -530,7 +793,7 @@ class TelescopeSimulator {
                 pos.y >= 0 && pos.y <= ctx.canvas.height) {
                 if (obj instanceof Planet) {
                     if (isExposure) {
-                        ctx.globalAlpha = 0.05;  // Very faint for planets too
+                        ctx.globalAlpha = 0.1;  // Increased from 0.05 to 0.1 for planets
                     }
                     obj.draw(ctx, pos, ctx.canvas, fov, scale);
                     if (isExposure) {
@@ -539,7 +802,7 @@ class TelescopeSimulator {
                 } else {
                     // For exposure, draw stars with very reduced opacity
                     if (isExposure) {
-                        ctx.globalAlpha = 0.02;  // Much fainter, will build up over time
+                        ctx.globalAlpha = 0.04;  // Increased from 0.02 to 0.04 for stars
                     }
                     obj.draw(ctx, pos, scale);
                     if (isExposure) {
@@ -847,7 +1110,7 @@ class TelescopeSimulator {
         this.updateEarthRotation(elapsedSeconds);
         this.updateDrift(elapsedSeconds);
         this.objects.forEach(obj => {
-            if (obj instanceof Planet) {
+            if (obj instanceof Planet || obj instanceof Satellite) {
                 obj.update(elapsedSeconds);
             }
         });
