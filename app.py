@@ -1,6 +1,8 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 import os
 from datetime import datetime
+import zipfile
+import io
 
 app = Flask(__name__)
 
@@ -65,6 +67,38 @@ def save_exposure():
             'filename': file.filename,
             'path': filepath
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/download_project')
+def download_project():
+    try:
+        # Create a BytesIO object to store the zip file
+        memory_file = io.BytesIO()
+        
+        # Create the zip file
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Add all files in the current directory except the exposures folder and __pycache__
+            for root, dirs, files in os.walk('.'):
+                if '__pycache__' in root or 'exposures' in root or '.git' in root:
+                    continue
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    arcname = os.path.relpath(filepath, '.')
+                    zf.write(filepath, arcname)
+        
+        # Move to the beginning of the BytesIO buffer
+        memory_file.seek(0)
+        
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='telescope-simulator.zip'
+        )
     except Exception as e:
         return jsonify({
             'success': False,
