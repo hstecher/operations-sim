@@ -190,6 +190,7 @@ class TelescopeSimulator {
         this.targetDec = null;
         this.slewing = false;
         this.tracking = false;
+        this.guiding = false;  // Add guiding state
 
         // Add drift parameters
         this.driftRa = 0;
@@ -219,22 +220,39 @@ class TelescopeSimulator {
         const trackingButton = document.getElementById('tracking-button');
         const exposureButton = document.getElementById('exposure-button');
         const viewModeButton = document.getElementById('view-mode-button');
+        const guidingButton = document.getElementById('guiding-button');  // Add guiding button
 
         // Update tracking button text
         const updateTrackingButton = () => {
             trackingButton.textContent = `Follow: ${this.tracking ? 'ON' : 'OFF'}`;
         };
 
-        // Initial button state
-        updateTrackingButton();
-
-        // Update view mode button text
-        const updateViewModeButton = () => {
-            viewModeButton.textContent = `View: ${this.viewMode.charAt(0).toUpperCase() + this.viewMode.slice(1)}`;
+        // Update guiding button text
+        const updateGuidingButton = () => {
+            guidingButton.textContent = `Guide: ${this.guiding ? 'ON' : 'OFF'}`;
         };
 
         // Initial button states
-        updateViewModeButton();
+        updateTrackingButton();
+        updateGuidingButton();
+
+        // Add guiding button handler
+        guidingButton.addEventListener('click', () => {
+            if (this.tracking) {  // Only allow guiding when tracking is on
+                this.guiding = !this.guiding;
+                updateGuidingButton();
+            }
+        });
+
+        // Modify tracking button to handle guiding state
+        trackingButton.addEventListener('click', () => {
+            this.tracking = !this.tracking;
+            if (!this.tracking) {
+                this.guiding = false;  // Turn off guiding when tracking is off
+                updateGuidingButton();
+            }
+            updateTrackingButton();
+        });
 
         // Modify exposure button handler to reset spectrum data
         exposureButton.addEventListener('click', () => {
@@ -248,11 +266,6 @@ class TelescopeSimulator {
             exposureButton.textContent = 'Clear Exposure';
         });
 
-        trackingButton.addEventListener('click', () => {
-            this.tracking = !this.tracking;
-            updateTrackingButton();
-        });
-
         slewButton.addEventListener('click', () => {
             const raValue = this.parseRA(raInput.value);
             const decValue = parseFloat(decInput.value);
@@ -261,6 +274,8 @@ class TelescopeSimulator {
                 this.targetRa = raValue;
                 this.targetDec = decValue;
                 this.slewing = true;
+                this.guiding = false;  // Turn off guiding when slewing starts
+                updateGuidingButton();
             }
         });
 
@@ -270,13 +285,17 @@ class TelescopeSimulator {
             if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                 e.preventDefault();
                 this.pressedKeys.add(e.key);
-                // Disable tracking when manually moving
+                // Disable tracking and guiding when manually moving
                 this.tracking = false;
+                this.guiding = false;
                 updateTrackingButton();
+                updateGuidingButton();
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.tracking = !this.tracking;
+                this.guiding = false;  // Turn off guiding when tracking state changes
                 updateTrackingButton();
+                updateGuidingButton();
             }
         });
 
@@ -366,9 +385,9 @@ class TelescopeSimulator {
     }
 
     updateDrift(elapsedSeconds) {
-        if (this.tracking) {
+        if (this.tracking && !this.guiding) {  // Only apply jitter if tracking but not guiding
             // Pure random jitter with increased frequency but small amplitude
-            const jitterAmount = 0.04;  // doubled from 0.02 to 0.04
+            const jitterAmount = 0.08;  // doubled from 0.04 to 0.08
             
             // Generate random jitter with gaussian-like distribution
             const getJitter = () => {
@@ -433,31 +452,49 @@ class TelescopeSimulator {
             ctx.stroke();
         }
 
-        // Get visible stars and draw their spots
-        const visibleStars = this.objects.filter(obj => {
-            if (obj instanceof Star) {
-                const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, 
-                                                TELESCOPE_FOV, this.telescopeCanvas);
-                return pos.x >= 0 && pos.x <= this.telescopeCanvas.width && 
-                       pos.y >= 0 && pos.y <= this.telescopeCanvas.height;
-            }
-            return false;
-        });
+        // Draw telescope view in each quadrant
+        for (let i = 0; i < LENSLET_COUNT; i++) {
+            for (let j = 0; j < LENSLET_COUNT; j++) {
+                // Calculate the quadrant boundaries
+                const quadX = i * cellSize;
+                const quadY = j * cellSize;
 
-        visibleStars.forEach(star => {
-            const basePos = star.getScreenPosition(this.telescopeRa, this.telescopeDec, 
-                                                 TELESCOPE_FOV, ctx.canvas, true);
-            // Add random deviation
-            const deviation = {
-                x: (Math.random() - 0.5) * SPOT_DEVIATION_MAX,
-                y: (Math.random() - 0.5) * SPOT_DEVIATION_MAX
-            };
-            
-            ctx.beginPath();
-            ctx.arc(basePos.x + deviation.x, basePos.y + deviation.y, 2, 0, Math.PI * 2);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fill();
-        });
+                // Save context to clip to quadrant
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(quadX, quadY, cellSize, cellSize);
+                ctx.clip();
+
+                // Draw objects in this quadrant
+                this.objects.forEach(obj => {
+                    const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, ctx.canvas);
+                    
+                    // Add random deviation for atmospheric effects
+                    const deviation = {
+                        x: (Math.random() - 0.5) * SPOT_DEVIATION_MAX,
+                        y: (Math.random() - 0.5) * SPOT_DEVIATION_MAX
+                    };
+
+                    // Adjust position for this quadrant
+                    const adjustedPos = {
+                        x: pos.x - (ctx.canvas.width/2 - quadX - cellSize/2) + deviation.x,
+                        y: pos.y - (ctx.canvas.height/2 - quadY - cellSize/2) + deviation.y
+                    };
+
+                    // Only draw if within the quadrant bounds
+                    if (adjustedPos.x >= quadX && adjustedPos.x <= quadX + cellSize &&
+                        adjustedPos.y >= quadY && adjustedPos.y <= quadY + cellSize) {
+                        if (obj instanceof Planet) {
+                            obj.draw(ctx, adjustedPos, ctx.canvas, TELESCOPE_FOV, 0.5);
+                        } else {
+                            obj.draw(ctx, adjustedPos, 0.5);
+                        }
+                    }
+                });
+
+                ctx.restore();
+            }
+        }
     }
 
     // Add new method to handle continuous movement
