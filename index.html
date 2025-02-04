@@ -8,43 +8,56 @@
 </head>
 <body>
     <div class="container">
-        <div class="controls">
-            <div class="input-group">
-                <label for="ra-input">Target RA (HH:MM)</label>
-                <input type="text" id="ra-input" placeholder="HH:MM">
-            </div>
-            <div class="input-group">
-                <label for="dec-input">Target Dec (deg)</label>
-                <input type="text" id="dec-input" placeholder="Degrees">
-            </div>
-            <button id="slew-button">Slew</button>
-            <button id="tracking-button">Follow: OFF</button>
-            <button id="guiding-button">Guide: OFF</button>
-            <button id="exposure-button">Start Exposure</button>
-            <button id="view-mode-button">View: Image</button>
-        </div>
-        
-        <div class="coordinates">
-            <div id="current-coords"></div>
+        <div class="view-toggle">
+            <button id="telescope-view-button" class="active">Telescope</button>
+            <button id="gallery-view-button">Gallery</button>
         </div>
 
-        <div class="panels">
-            <div class="panel">
-                <h3>Telescope View</h3>
-                <canvas id="telescope-panel" width="350" height="350"></canvas>
+        <div id="telescope-view">
+            <div class="controls">
+                <div class="input-group">
+                    <label for="ra-input">Target RA (HH:MM)</label>
+                    <input type="text" id="ra-input" placeholder="HH:MM">
+                </div>
+                <div class="input-group">
+                    <label for="dec-input">Target Dec (deg)</label>
+                    <input type="text" id="dec-input" placeholder="Degrees">
+                </div>
+                <button id="slew-button">Slew</button>
+                <button id="tracking-button">Follow: OFF</button>
+                <button id="guiding-button">Guide: OFF</button>
+                <button id="exposure-button">Start Exposure</button>
+                <button id="view-mode-button">View: Image</button>
             </div>
-            <div class="panel">
-                <h3>Acquisition View</h3>
-                <canvas id="acquisition-panel" width="350" height="350"></canvas>
+            
+            <div class="coordinates">
+                <div id="current-coords"></div>
             </div>
-            <div class="panel">
-                <h3>SHWFS View</h3>
-                <canvas id="shwfs-panel" width="350" height="350"></canvas>
+
+            <div class="panels">
+                <div class="panel">
+                    <h3>Telescope View</h3>
+                    <canvas id="telescope-panel" width="350" height="350"></canvas>
+                </div>
+                <div class="panel">
+                    <h3>Acquisition View</h3>
+                    <canvas id="acquisition-panel" width="350" height="350"></canvas>
+                </div>
+                <div class="panel">
+                    <h3>SHWFS View</h3>
+                    <canvas id="shwfs-panel" width="350" height="350"></canvas>
+                </div>
+                <div class="panel">
+                    <h3>Exposure</h3>
+                    <canvas id="exposure-panel" width="350" height="350"></canvas>
+                    <button id="save-exposure-button" class="panel-button">Save Exposure</button>
+                </div>
             </div>
-            <div class="panel">
-                <h3>Exposure</h3>
-                <canvas id="exposure-panel" width="350" height="350"></canvas>
-            </div>
+        </div>
+
+        <div id="gallery-view" style="display: none;">
+            <h2>Saved Exposures</h2>
+            <div id="exposure-gallery" class="gallery"></div>
         </div>
     </div>
     <script src="skyConfig.js"></script>

@@ -220,7 +220,48 @@ class TelescopeSimulator {
         const trackingButton = document.getElementById('tracking-button');
         const exposureButton = document.getElementById('exposure-button');
         const viewModeButton = document.getElementById('view-mode-button');
-        const guidingButton = document.getElementById('guiding-button');  // Add guiding button
+        const guidingButton = document.getElementById('guiding-button');
+        const saveExposureButton = document.getElementById('save-exposure-button');
+        const telescopeViewButton = document.getElementById('telescope-view-button');
+        const galleryViewButton = document.getElementById('gallery-view-button');
+        const telescopeView = document.getElementById('telescope-view');
+        const galleryView = document.getElementById('gallery-view');
+        const exposureGallery = document.getElementById('exposure-gallery');
+
+        // Function to load gallery
+        const loadGallery = () => {
+            fetch('/list_exposures')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        exposureGallery.innerHTML = data.files.map(file => `
+                            <div class="gallery-item">
+                                <img src="${file.url}" alt="${file.filename}">
+                                <div class="info">
+                                    ${new Date(file.created).toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                })
+                .catch(error => console.error('Error loading gallery:', error));
+        };
+
+        // View toggle handlers
+        telescopeViewButton.addEventListener('click', () => {
+            telescopeView.style.display = 'block';
+            galleryView.style.display = 'none';
+            telescopeViewButton.classList.add('active');
+            galleryViewButton.classList.remove('active');
+        });
+
+        galleryViewButton.addEventListener('click', () => {
+            telescopeView.style.display = 'none';
+            galleryView.style.display = 'block';
+            telescopeViewButton.classList.remove('active');
+            galleryViewButton.classList.add('active');
+            loadGallery();  // Load gallery when switching to gallery view
+        });
 
         // Update tracking button text
         const updateTrackingButton = () => {
@@ -232,9 +273,84 @@ class TelescopeSimulator {
             guidingButton.textContent = `Guide: ${this.guiding ? 'ON' : 'OFF'}`;
         };
 
+        // Update view mode button text
+        const updateViewModeButton = () => {
+            viewModeButton.textContent = `View: ${this.viewMode.charAt(0).toUpperCase() + this.viewMode.slice(1)}`;
+        };
+
         // Initial button states
         updateTrackingButton();
         updateGuidingButton();
+        updateViewModeButton();
+
+        // Add save exposure handler
+        saveExposureButton.addEventListener('click', () => {
+            // Create a temporary canvas to add coordinates
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.exposureCanvas.width;
+            tempCanvas.height = this.exposureCanvas.height + 30; // Extra height for coordinates
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Fill background
+            tempCtx.fillStyle = '#000000';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            // Copy the exposure
+            tempCtx.drawImage(this.exposureCanvas, 0, 0);
+
+            // Add coordinates text
+            tempCtx.font = '14px monospace';
+            tempCtx.fillStyle = '#FFFFFF';
+            tempCtx.textAlign = 'center';
+            tempCtx.fillText(
+                `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
+                tempCanvas.width / 2,
+                tempCanvas.height - 10
+            );
+
+            // Generate a random filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const randomStr = Math.random().toString(36).substring(2, 8);
+            const filename = `exposure_${timestamp}_${randomStr}.png`;
+
+            // Get the temporary canvas data
+            tempCanvas.toBlob((blob) => {
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', blob, filename);
+
+                // Send to server
+                fetch('/save_exposure', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        saveExposureButton.textContent = 'Saved!';
+                        setTimeout(() => {
+                            saveExposureButton.textContent = 'Save Exposure';
+                        }, 2000);
+                        // Refresh gallery if it's visible
+                        if (galleryView.style.display === 'block') {
+                            loadGallery();
+                        }
+                    } else {
+                        saveExposureButton.textContent = 'Error!';
+                        setTimeout(() => {
+                            saveExposureButton.textContent = 'Save Exposure';
+                        }, 2000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving exposure:', error);
+                    saveExposureButton.textContent = 'Error!';
+                    setTimeout(() => {
+                        saveExposureButton.textContent = 'Save Exposure';
+                    }, 2000);
+                });
+            }, 'image/png');
+        });
 
         // Add guiding button handler
         guidingButton.addEventListener('click', () => {
