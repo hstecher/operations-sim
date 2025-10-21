@@ -1,7 +1,7 @@
 // Constants
 const STAR_COUNT = 1000;
 const SATELLITE_COUNT = 3;  // Add a few satellites
-const TELESCOPE_FOV = 5;  // degrees
+const TELESCOPE_FOV = 0.5;  // degrees - zoomed in to focus on single objects
 const ACQUISITION_FOV = 120;  // degrees
 const SHWFS_SIZE = 500;
 const LENSLET_COUNT = 2;
@@ -17,12 +17,15 @@ const WAVELENGTH_MAX = 780;  // nm
 const SATELLITE_SPEED = 0.5;  // degrees per second
 const SATELLITE_MAGNITUDE = 2;  // Fairly bright
 
-// Planet colors
+// Planet colors (for future use)
 const PLANET_COLORS = {
-    'Mars': '#FF6400',
-    'Jupiter': '#FFC864',
-    'Saturn': '#FFDC96',
-    'Venus': '#FFFFC8'
+    'Mercury': '#B7B8B9',
+    'Venus': '#FFF5E1',
+    'Mars': '#CD5C5C',
+    'Jupiter': '#DAA520',
+    'Saturn': '#F4E4C1',
+    'Uranus': '#4FD0E7',
+    'Neptune': '#4169E1'
 };
 
 class CelestialObject {
@@ -67,44 +70,96 @@ class Star extends CelestialObject {
             'M': '#FFB56C'   // Red
         };
         
-        this.spectralType = starConfig.spectralType || 
-            ['O', 'B', 'A', 'F', 'G', 'K', 'M'][Math.floor(Math.random() * 7)];
-        this.color = spectralColors[this.spectralType];
+        this.spectralType = starConfig.spectralType || 'G';
+        this.color = spectralColors[this.spectralType] || spectralColors['G'];
+        this.name = starConfig.name || null;
         
         // Add twinkle effect
         this.twinklePhase = Math.random() * Math.PI * 2;
         this.twinkleSpeed = 2 + Math.random() * 2;
 
-        // Spectral data
-        this.spectra = starConfig.spectra || {
-            type: this.spectralType,
-            peaks: [
-                393.4 + Math.random() * 2, // Ca K
-                396.8 + Math.random() * 2, // Ca H
-                410.2 + Math.random() * 2, // Hδ
-                434.0 + Math.random() * 2, // Hγ
-                486.1 + Math.random() * 2, // Hβ
-                516.7 + Math.random() * 2, // Mg
-                656.3 + Math.random() * 2  // Hα
-            ],
-            intensities: [
-                0.7 + Math.random() * 0.3,  // Ca K
-                0.75 + Math.random() * 0.25, // Ca H
-                0.6 + Math.random() * 0.3,  // Hδ
-                0.7 + Math.random() * 0.3,  // Hγ
-                0.8 + Math.random() * 0.2,  // Hβ
-                0.65 + Math.random() * 0.25, // Mg
-                0.85 + Math.random() * 0.15  // Hα
-            ]
+        // Generate spectral data based on spectral type
+        this.spectra = this.generateSpectra(this.spectralType);
+    }
+
+    generateSpectra(type) {
+        // Define spectral line peaks and intensities for each spectral type
+        const spectralData = {
+            'O': {  // Hot blue stars - strong helium lines
+                peaks: [393.4, 396.8, 410.2, 434.0, 447.1, 471.3, 486.1, 656.3],
+                intensities: [0.95, 0.92, 0.88, 0.85, 0.90, 0.82, 0.75, 0.65]
+            },
+            'B': {  // Very hot stars - strong hydrogen
+                peaks: [393.4, 396.8, 410.2, 434.0, 486.1, 656.3],
+                intensities: [0.90, 0.88, 0.92, 0.95, 0.88, 0.82]
+            },
+            'A': {  // Hot stars - strongest hydrogen lines
+                peaks: [393.4, 396.8, 410.2, 434.0, 486.1, 656.3],
+                intensities: [0.85, 0.82, 0.88, 1.00, 0.95, 0.90]
+            },
+            'F': {  // Warm stars - strong hydrogen, increasing metals
+                peaks: [393.4, 396.8, 410.2, 434.0, 486.1, 516.7, 656.3],
+                intensities: [0.80, 0.78, 0.85, 0.90, 0.88, 0.85, 0.85]
+            },
+            'G': {  // Solar type - mix of metals and hydrogen
+                peaks: [393.4, 396.8, 410.2, 434.0, 486.1, 516.7, 588.9, 656.3],
+                intensities: [0.95, 0.92, 0.80, 0.85, 0.82, 0.90, 0.95, 0.80]
+            },
+            'K': {  // Cool stars - strong metal lines
+                peaks: [393.4, 396.8, 410.2, 434.0, 486.1, 516.7, 588.9, 656.3],
+                intensities: [1.00, 0.98, 0.75, 0.70, 0.78, 0.95, 0.98, 0.75]
+            },
+            'M': {  // Very cool stars - molecular bands
+                peaks: [410.2, 434.0, 447.1, 486.1, 516.7, 656.3, 706.5],
+                intensities: [0.70, 0.65, 0.95, 0.72, 0.95, 0.70, 0.88]
+            }
+        };
+
+        const data = spectralData[type] || spectralData['G'];
+        
+        // Add small random variations to make each star unique
+        const peaks = data.peaks.map(p => p + (Math.random() - 0.5) * 1);
+        const intensities = data.intensities.map(i => i * (0.95 + Math.random() * 0.1));
+
+        return {
+            type: type,
+            peaks: peaks,
+            intensities: intensities
         };
     }
 
     draw(ctx, pos, scale = 1.0) {
-        const baseRadius = Math.max(1.5, (6 - this.magnitude) * scale);  // Increased from 4 to 6 for brighter stars
+        const baseRadius = Math.max(1.5, (6 - this.magnitude) * scale);
         
-        // Add twinkle effect
-        const twinkle = Math.sin(this.twinklePhase) * 0.3 + 0.8;  // Changed from 0.7 to 0.8 for higher minimum brightness
+        // Only twinkle in acquisition/SHWFS views (small scale), not in telescope/exposure views
+        const shouldTwinkle = scale < 3;
+        const twinkle = shouldTwinkle ? (Math.sin(this.twinklePhase) * 0.3 + 0.8) : 1.0;
         const radius = baseRadius * twinkle;
+        
+        // For zoomed telescope view (large scale), add an impressive glow halo
+        if (scale > 3) {
+            const haloGradient = ctx.createRadialGradient(
+                pos.x, pos.y, 0,
+                pos.x, pos.y, radius * 3
+            );
+            // Parse color to add alpha
+            const colorMatch = this.color.match(/#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i);
+            if (colorMatch) {
+                const r = parseInt(colorMatch[1], 16);
+                const g = parseInt(colorMatch[2], 16);
+                const b = parseInt(colorMatch[3], 16);
+                haloGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.4)`);
+                haloGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.2)`);
+                haloGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            } else {
+                haloGradient.addColorStop(0, this.color);
+                haloGradient.addColorStop(1, 'rgba(255,255,255,0)');
+            }
+            ctx.fillStyle = haloGradient;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius * 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
         // Draw main star
         ctx.beginPath();
@@ -113,38 +168,20 @@ class Star extends CelestialObject {
         // Create gradient for more realistic star appearance
         const gradient = ctx.createRadialGradient(
             pos.x, pos.y, 0,
-            pos.x, pos.y, radius
+            pos.x, pos.y, radius * 1.5
         );
-        gradient.addColorStop(0, this.color);
-        gradient.addColorStop(0.7, this.color);  // Added middle stop for more intense core
+        gradient.addColorStop(0, '#FFFFFF');  // Bright white core
+        gradient.addColorStop(0.3, this.color);  // Star color
+        gradient.addColorStop(0.7, this.color);
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
         
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Add diffraction spikes for brighter stars
-        if (this.magnitude < 3 && scale > 0.5) {  // Changed from 2 to 3 to show spikes on more stars
-            ctx.strokeStyle = this.color;
-            ctx.lineWidth = 0.5;
-            const spikeLength = radius * 2.5;  // Increased from 2 to 2.5
-            
-            // Draw spikes
-            for (let angle = 0; angle < Math.PI; angle += Math.PI / 4) {
-                ctx.beginPath();
-                ctx.moveTo(
-                    pos.x + Math.cos(angle) * radius,
-                    pos.y + Math.sin(angle) * radius
-                );
-                ctx.lineTo(
-                    pos.x + Math.cos(angle) * spikeLength,
-                    pos.y + Math.sin(angle) * spikeLength
-                );
-                ctx.stroke();
-            }
+        // Only update twinkle phase for acquisition/SHWFS views (simulates atmospheric turbulence)
+        if (shouldTwinkle) {
+            this.twinklePhase += this.twinkleSpeed * 0.05;
         }
-
-        // Update twinkle phase
-        this.twinklePhase += this.twinkleSpeed * 0.05;
     }
 }
 
@@ -234,21 +271,11 @@ class Satellite extends CelestialObject {
     }
 }
 
+// Planet class - disabled for now
+/*
 class Planet extends CelestialObject {
-    constructor(config) {
-        super(config.ra, config.dec, config.magnitude);
-        this.name = config.name;
-        this.color = PLANET_COLORS[config.name];
-        this.hasRings = config.name === 'Saturn';
-        this.features = config.features || this.generateFeatures();
-        
-        this.spectra = config.spectra || {
-            type: 'Reflected',
-            peaks: [486.1, 656.3],
-            intensities: [0.7, 0.8]
-        };
-        
-        this.moons = config.moons.map(moonConfig => new Moon(this, moonConfig));
+    constructor(name) {
+        // Placeholder for future planet implementation
     }
 
     generateFeatures() {
@@ -399,10 +426,12 @@ class Planet extends CelestialObject {
         this.moons.forEach(moon => moon.draw(ctx, pos, canvas, fov, scale));
     }
 
-    update(elapsedSeconds) {
-        this.moons.forEach(moon => moon.update(elapsedSeconds));
+    update(date) {
+        // Update position based on current date
+        this.updatePosition(date);
     }
 }
+*/
 
 class TelescopeSimulator {
     constructor() {
@@ -434,11 +463,6 @@ class TelescopeSimulator {
         // Add stars from configuration
         skyConfig.stars.forEach(starConfig => {
             this.objects.push(new Star(starConfig));
-        });
-
-        // Add planets from configuration
-        skyConfig.planets.forEach(planetConfig => {
-            this.objects.push(new Planet(planetConfig));
         });
 
         // Add satellites
@@ -664,11 +688,8 @@ class TelescopeSimulator {
             if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                 e.preventDefault();
                 this.pressedKeys.add(e.key);
-                // Disable tracking and guiding when manually moving
-                this.tracking = false;
-                this.guiding = false;
-                updateTrackingButton();
-                updateGuidingButton();
+                // Allow manual adjustments while tracking/guiding is active
+                // This enables fine-tuning without disabling automatic tracking
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.tracking = !this.tracking;
@@ -786,28 +807,25 @@ class TelescopeSimulator {
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         }
 
+        // Check if this is the telescope view (narrow FOV)
+        const isTelescopeView = (fov === TELESCOPE_FOV);
+
         // Draw objects
         this.objects.forEach(obj => {
             const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, fov, ctx.canvas);
             if (pos.x >= 0 && pos.x <= ctx.canvas.width && 
                 pos.y >= 0 && pos.y <= ctx.canvas.height) {
-                if (obj instanceof Planet) {
-                    if (isExposure) {
-                        ctx.globalAlpha = 0.1;  // Increased from 0.05 to 0.1 for planets
-                    }
-                    obj.draw(ctx, pos, ctx.canvas, fov, scale);
-                    if (isExposure) {
-                        ctx.globalAlpha = 1.0;
-                    }
-                } else {
-                    // For exposure, draw stars with very reduced opacity
-                    if (isExposure) {
-                        ctx.globalAlpha = 0.04;  // Increased from 0.02 to 0.04 for stars
-                    }
-                    obj.draw(ctx, pos, scale);
-                    if (isExposure) {
-                        ctx.globalAlpha = 1.0;
-                    }
+                // For exposure, draw with reduced opacity
+                if (isExposure) {
+                    ctx.globalAlpha = 0.04;
+                }
+                
+                // Use much larger scale for telescope view to make objects more impressive
+                const drawScale = isTelescopeView ? scale * 8 : scale;
+                obj.draw(ctx, pos, drawScale);
+                
+                if (isExposure) {
+                    ctx.globalAlpha = 1.0;
                 }
             }
         });
@@ -863,11 +881,7 @@ class TelescopeSimulator {
                     // Only draw if within the quadrant bounds
                     if (adjustedPos.x >= quadX && adjustedPos.x <= quadX + cellSize &&
                         adjustedPos.y >= quadY && adjustedPos.y <= quadY + cellSize) {
-                        if (obj instanceof Planet) {
-                            obj.draw(ctx, adjustedPos, ctx.canvas, TELESCOPE_FOV, 0.5);
-                        } else {
-                            obj.draw(ctx, adjustedPos, 0.5);
-                        }
+                        obj.draw(ctx, adjustedPos, 0.5);
                     }
                 });
 
@@ -878,7 +892,9 @@ class TelescopeSimulator {
 
     // Add new method to handle continuous movement
     updateManualMovement(elapsedSeconds) {
-        const moveSpeed = 15 * elapsedSeconds;  // degrees per second
+        // Use much slower speed when guiding is active for fine-tuning
+        const baseMoveSpeed = this.guiding ? 0.5 : 15;  // 0.5 deg/s when guiding, 15 deg/s normally
+        const moveSpeed = baseMoveSpeed * elapsedSeconds;
 
         this.pressedKeys.forEach(key => {
             switch(key) {
@@ -896,6 +912,84 @@ class TelescopeSimulator {
                     break;
             }
         });
+    }
+
+    drawReticle(ctx) {
+        const centerX = ctx.canvas.width / 2;
+        const centerY = ctx.canvas.height / 2;
+        const reticleSize = 30;
+        const gap = 10;
+
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+
+        // Draw crosshair lines
+        // Top line
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - gap);
+        ctx.lineTo(centerX, centerY - reticleSize);
+        ctx.stroke();
+
+        // Bottom line
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY + gap);
+        ctx.lineTo(centerX, centerY + reticleSize);
+        ctx.stroke();
+
+        // Left line
+        ctx.beginPath();
+        ctx.moveTo(centerX - gap, centerY);
+        ctx.lineTo(centerX - reticleSize, centerY);
+        ctx.stroke();
+
+        // Right line
+        ctx.beginPath();
+        ctx.moveTo(centerX + gap, centerY);
+        ctx.lineTo(centerX + reticleSize, centerY);
+        ctx.stroke();
+
+        // Draw center circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, gap - 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Draw outer circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, reticleSize + 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Add corner brackets
+        const bracketSize = 15;
+        const bracketOffset = 50;
+
+        // Top-left
+        ctx.beginPath();
+        ctx.moveTo(centerX - bracketOffset, centerY - bracketOffset + bracketSize);
+        ctx.lineTo(centerX - bracketOffset, centerY - bracketOffset);
+        ctx.lineTo(centerX - bracketOffset + bracketSize, centerY - bracketOffset);
+        ctx.stroke();
+
+        // Top-right
+        ctx.beginPath();
+        ctx.moveTo(centerX + bracketOffset - bracketSize, centerY - bracketOffset);
+        ctx.lineTo(centerX + bracketOffset, centerY - bracketOffset);
+        ctx.lineTo(centerX + bracketOffset, centerY - bracketOffset + bracketSize);
+        ctx.stroke();
+
+        // Bottom-left
+        ctx.beginPath();
+        ctx.moveTo(centerX - bracketOffset, centerY + bracketOffset - bracketSize);
+        ctx.lineTo(centerX - bracketOffset, centerY + bracketOffset);
+        ctx.lineTo(centerX - bracketOffset + bracketSize, centerY + bracketOffset);
+        ctx.stroke();
+
+        // Bottom-right
+        ctx.beginPath();
+        ctx.moveTo(centerX + bracketOffset - bracketSize, centerY + bracketOffset);
+        ctx.lineTo(centerX + bracketOffset, centerY + bracketOffset);
+        ctx.lineTo(centerX + bracketOffset, centerY + bracketOffset - bracketSize);
+        ctx.stroke();
     }
 
     drawSpectralLine(ctx, object, x, y, width, height) {
@@ -1014,15 +1108,11 @@ class TelescopeSimulator {
 
         if (this.viewMode === 'image') {
             // Draw current telescope view onto exposure buffer with low opacity
+            // Use same scale as telescope view (8x) to match what's seen
             visibleObjects.forEach(obj => {
                 const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.exposureBuffer);
-                if (obj instanceof Planet) {
-                    this.exposureBufferCtx.globalAlpha = 0.05;
-                    obj.draw(this.exposureBufferCtx, pos, this.exposureBuffer, TELESCOPE_FOV, 1.0);
-                } else {
-                    this.exposureBufferCtx.globalAlpha = 0.02;
-                    obj.draw(this.exposureBufferCtx, pos, 1.0);
-                }
+                this.exposureBufferCtx.globalAlpha = 0.02;
+                obj.draw(this.exposureBufferCtx, pos, 8.0);  // Match telescope view scale
                 this.exposureBufferCtx.globalAlpha = 1.0;
             });
         } else {
@@ -1109,8 +1199,10 @@ class TelescopeSimulator {
         this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
         this.updateDrift(elapsedSeconds);
+        
+        // Update satellites
         this.objects.forEach(obj => {
-            if (obj instanceof Planet || obj instanceof Satellite) {
+            if (obj instanceof Satellite) {
                 obj.update(elapsedSeconds);
             }
         });
@@ -1118,6 +1210,7 @@ class TelescopeSimulator {
         // Draw
         this.drawPanel(this.telescopeCtx, TELESCOPE_FOV, 1.0);
         this.drawPanel(this.acquisitionCtx, ACQUISITION_FOV, 0.5);
+        this.drawReticle(this.acquisitionCtx);  // Add reticle to acquisition view
         this.drawSHWFS();
         this.updateExposure();
         this.updateCoordinates();
