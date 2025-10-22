@@ -353,17 +353,34 @@ class Planet extends CelestialObject {
         
         // In telescope/exposure view (large scale), use real image if loaded
         if (scale > 3 && this.imageLoaded && this.image) {
-            // Draw planet image as a circular disk
+            // Draw planet image maintaining aspect ratio
             ctx.save();
             
-            // Create circular clipping path
-            ctx.beginPath();
-            ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
-            ctx.clip();
+            // Calculate aspect ratio and dimensions
+            const imgWidth = this.image.width;
+            const imgHeight = this.image.height;
+            const aspectRatio = imgWidth / imgHeight;
             
-            // Draw the image centered
-            const imgSize = radius * 2;
-            ctx.drawImage(this.image, pos.x - radius, pos.y - radius, imgSize, imgSize);
+            // Determine display size based on aspect ratio
+            let displayWidth, displayHeight;
+            if (aspectRatio > 1) {
+                // Wider than tall (like Saturn with rings)
+                displayWidth = radius * 2 * aspectRatio;
+                displayHeight = radius * 2;
+            } else {
+                // Taller than wide or square
+                displayWidth = radius * 2;
+                displayHeight = radius * 2 / aspectRatio;
+            }
+            
+            // Draw the image centered (no clipping for non-circular planets like Saturn)
+            ctx.drawImage(
+                this.image, 
+                pos.x - displayWidth / 2, 
+                pos.y - displayHeight / 2, 
+                displayWidth, 
+                displayHeight
+            );
             
             ctx.restore();
             
