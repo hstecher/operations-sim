@@ -1,0 +1,52 @@
+DEEP SKY OBJECTS - FINDER GUIDE
+=================================
+
+To help kids find these objects in the simulator, use these coordinates:
+
+GALAXIES
+--------
+M31 - Andromeda Galaxy
+  RA:  00h 42m  (10.685°)
+  Dec: +41° 16'
+  Magnitude: 3.4 (bright!)
+  Tip: Big and bright, great first target
+
+M51 - Whirlpool Galaxy
+  RA:  13h 30m  (202.47°)
+  Dec: +47° 12'
+  Magnitude: 8.4
+  Tip: Beautiful spiral structure
+
+NEBULAE
+-------
+M42 - Orion Nebula
+  RA:  05h 35m  (83.822°)
+  Dec: -05° 23'
+  Magnitude: 4.0 (bright!)
+  Tip: In Orion's sword, lots of color
+
+M57 - Ring Nebula
+  RA:  18h 53m  (283.40°)
+  Dec: +33° 02'
+  Magnitude: 8.8
+  Tip: Perfect ring shape
+
+M1 - Crab Nebula
+  RA:  05h 34m  (83.633°)
+  Dec: +22° 01'
+  Magnitude: 8.4
+  Tip: Wispy filaments from supernova
+
+M8 - Lagoon Nebula
+  RA:  18h 04m  (270.93°)
+  Dec: -24° 23'
+  Magnitude: 6.0
+  Tip: Large, red/pink glow
+
+NGC 7293 - Helix Nebula
+  RA:  22h 30m  (337.41°)
+  Dec: -20° 50'
+  Magnitude: 7.6
+  Tip: "Eye of God", ring structure
+
+HINT: Objects appear in the console (F12) at startup with their coordinates!

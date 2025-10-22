@@ -42,6 +42,17 @@ const PLANET_IMAGES = {
 // UFO image path
 const UFO_IMAGE = 'planets/ufo.png';
 
+// Deep sky object image paths
+const DSO_IMAGES = {
+    'M31': 'dso/m31_andromeda.png',           // Andromeda Galaxy
+    'M42': 'dso/m42_orion.png',               // Orion Nebula
+    'M51': 'dso/m51_whirlpool.png',           // Whirlpool Galaxy
+    'M57': 'dso/m57_ring.png',                // Ring Nebula
+    'M1': 'dso/m1_crab.png',                  // Crab Nebula
+    'M8': 'dso/m8_lagoon.png',                // Lagoon Nebula
+    'NGC7293': 'dso/ngc7293_helix.png'        // Helix Nebula
+};
+
 // Helper function to format RA from degrees to HH:MM
 function formatRADegrees(raDegrees) {
     const hours = raDegrees / 15;  // Convert to hours
@@ -290,6 +301,113 @@ class Satellite extends CelestialObject {
         
         ctx.fillStyle = gradient;
         ctx.fill();
+    }
+}
+
+class DeepSkyObject extends CelestialObject {
+    constructor(name, ra, dec, magnitude, type) {
+        super(ra, dec, magnitude);
+        this.name = name;
+        this.type = type;  // 'galaxy' or 'nebula'
+        
+        // Load DSO image
+        this.image = null;
+        this.imageLoaded = false;
+        this.loadImage();
+        
+        // No spectra for extended objects
+        this.spectra = {
+            type: type === 'galaxy' ? 'Galaxy' : 'Nebula',
+            peaks: [450, 550, 650],
+            intensities: [0.6, 0.7, 0.6]
+        };
+    }
+    
+    loadImage() {
+        const imagePath = DSO_IMAGES[this.name];
+        if (!imagePath) {
+            console.warn(`No image path defined for ${this.name}`);
+            return;
+        }
+        
+        const img = new Image();
+        img.onload = () => {
+            this.image = img;
+            this.imageLoaded = true;
+        };
+        img.onerror = () => {
+            console.warn(`DSO image not found: ${imagePath}`);
+            this.imageLoaded = false;
+        };
+        img.src = imagePath;
+    }
+    
+    draw(ctx, pos, scale = 1.0) {
+        // DSOs are extended objects, so they appear much larger than stars
+        let baseSize = Math.max(8, (12 - this.magnitude) * scale);
+        
+        // Make them even bigger in telescope view for impressive visuals
+        if (scale > 3) {
+            baseSize *= 3;  // 3x larger in telescope/exposure view
+        }
+        
+        // In telescope/exposure view, use the image
+        if (scale > 3 && this.imageLoaded && this.image) {
+            ctx.save();
+            
+            // Calculate aspect ratio
+            const imgWidth = this.image.width;
+            const imgHeight = this.image.height;
+            const aspectRatio = imgWidth / imgHeight;
+            
+            let displayWidth, displayHeight;
+            if (aspectRatio > 1) {
+                displayWidth = baseSize * 2 * aspectRatio;
+                displayHeight = baseSize * 2;
+            } else {
+                displayWidth = baseSize * 2;
+                displayHeight = baseSize * 2 / aspectRatio;
+            }
+            
+            // Draw the DSO image with slight transparency (they're faint)
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(
+                this.image, 
+                pos.x - displayWidth / 2, 
+                pos.y - displayHeight / 2, 
+                displayWidth, 
+                displayHeight
+            );
+            ctx.globalAlpha = 1.0;
+            
+            ctx.restore();
+        } else {
+            // In acquisition view, draw as fuzzy patch
+            const fuzzRadius = baseSize * 1.2;  // Larger fuzzy patches
+            
+            // Multiple layers for fuzzy appearance
+            for (let i = 3; i > 0; i--) {
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, fuzzRadius * i * 0.5, 0, Math.PI * 2);
+                
+                const gradient = ctx.createRadialGradient(
+                    pos.x, pos.y, 0,
+                    pos.x, pos.y, fuzzRadius * i * 0.5
+                );
+                
+                const alpha = 0.25 / i;  // Increased brightness
+                if (this.type === 'nebula') {
+                    gradient.addColorStop(0, `rgba(255, 180, 200, ${alpha * 3})`);
+                    gradient.addColorStop(1, `rgba(255, 180, 200, 0)`);
+                } else {
+                    gradient.addColorStop(0, `rgba(220, 220, 255, ${alpha * 3})`);
+                    gradient.addColorStop(1, `rgba(220, 220, 255, 0)`);
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            }
+        }
     }
 }
 
@@ -670,6 +788,23 @@ class TelescopeSimulator {
         const ufo = new UFO(150.0, 25.0);  // RA in degrees, Dec in degrees
         this.objects.push(ufo);
         console.log(`UFO: RA=${formatRADegrees(ufo.ra)}, Dec=${ufo.dec.toFixed(2)}°, Mag=${ufo.magnitude.toFixed(1)} 🛸`);
+        
+        // Add famous deep sky objects
+        const deepSkyObjects = [
+            { name: 'M31', ra: 10.685, dec: 41.269, mag: 3.4, type: 'galaxy', desc: 'Andromeda Galaxy' },
+            { name: 'M42', ra: 83.822, dec: -5.391, mag: 4.0, type: 'nebula', desc: 'Orion Nebula' },
+            { name: 'M51', ra: 202.47, dec: 47.195, mag: 8.4, type: 'galaxy', desc: 'Whirlpool Galaxy' },
+            { name: 'M57', ra: 283.40, dec: 33.029, mag: 8.8, type: 'nebula', desc: 'Ring Nebula' },
+            { name: 'M1', ra: 83.633, dec: 22.014, mag: 8.4, type: 'nebula', desc: 'Crab Nebula' },
+            { name: 'M8', ra: 270.93, dec: -24.38, mag: 6.0, type: 'nebula', desc: 'Lagoon Nebula' },
+            { name: 'NGC7293', ra: 337.41, dec: -20.837, mag: 7.6, type: 'nebula', desc: 'Helix Nebula' }
+        ];
+        
+        deepSkyObjects.forEach(dso => {
+            const obj = new DeepSkyObject(dso.name, dso.ra, dso.dec, dso.mag, dso.type);
+            this.objects.push(obj);
+            console.log(`${dso.name} (${dso.desc}): RA=${formatRADegrees(dso.ra)}, Dec=${dso.dec.toFixed(2)}°, Mag=${dso.mag.toFixed(1)}`);
+        });
 
         // Add satellites
         for (let i = 0; i < SATELLITE_COUNT; i++) {
