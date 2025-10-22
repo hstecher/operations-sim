@@ -28,6 +28,25 @@ const PLANET_COLORS = {
     'Neptune': '#4169E1'
 };
 
+// Local planet image paths - replace these PNG files with real planet images
+const PLANET_IMAGES = {
+    'Mercury': 'planets/mercury.png',
+    'Venus': 'planets/venus.png',
+    'Mars': 'planets/mars.png',
+    'Jupiter': 'planets/jupiter.png',
+    'Saturn': 'planets/saturn.png',
+    'Uranus': 'planets/uranus.png',
+    'Neptune': 'planets/neptune.png'
+};
+
+// Helper function to format RA from degrees to HH:MM
+function formatRADegrees(raDegrees) {
+    const hours = raDegrees / 15;  // Convert to hours
+    const h = Math.floor(hours);
+    const m = Math.floor((hours - h) * 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
 class CelestialObject {
     constructor(ra, dec, magnitude) {
         this.ra = ra;
@@ -271,11 +290,138 @@ class Satellite extends CelestialObject {
     }
 }
 
-// Planet class - disabled for now
-/*
 class Planet extends CelestialObject {
     constructor(name) {
-        // Placeholder for future planet implementation
+        // Start with default position, will be updated by ephemeris
+        super(0, 0, 0);
+        this.name = name;
+        this.color = PLANET_COLORS[name] || '#FFFFFF';
+        
+        // Simple spectra for reflected sunlight
+        this.spectra = {
+            type: 'Reflected',
+            peaks: [430, 486.1, 550, 656.3],
+            intensities: [0.7, 0.8, 0.9, 0.7]
+        };
+        
+        // Load planet image
+        this.image = null;
+        this.imageLoaded = false;
+        this.loadImage();
+    }
+    
+    loadImage() {
+        // Load the local image
+        const img = new Image();
+        img.onload = () => {
+            this.image = img;
+            this.imageLoaded = true;
+        };
+        img.onerror = () => {
+            console.warn(`Planet image not found: ${PLANET_IMAGES[this.name]} - using colored circle fallback`);
+            this.imageLoaded = false;
+        };
+        img.src = PLANET_IMAGES[this.name];
+    }
+    
+    updatePosition(date) {
+        try {
+            // Use astronomy-engine to calculate planet position
+            // Note: astronomy-engine expects capitalized planet names
+            const body = this.name;  // Keep the capital name!
+            
+            // Get heliocentric position first, then convert to equatorial
+            const vector = Astronomy.HelioVector(body, date);
+            const equator = Astronomy.EquatorFromVector(vector);
+            
+            // Convert from hours to degrees for RA
+            this.ra = equator.ra * 15.0;
+            this.dec = equator.dec;
+            
+            // Get illumination for magnitude
+            const illum = Astronomy.Illumination(body, date);
+            this.magnitude = illum.mag;
+        } catch (e) {
+            console.error(`Error calculating position for ${this.name}:`, e);
+        }
+    }
+
+    draw(ctx, pos, scale = 1.0) {
+        // Calculate radius based on magnitude and scale
+        const baseRadius = Math.max(3, (6 - this.magnitude) * scale);
+        const radius = baseRadius;
+        
+        // In telescope/exposure view (large scale), use real image if loaded
+        if (scale > 3 && this.imageLoaded && this.image) {
+            // Draw planet image as a circular disk
+            ctx.save();
+            
+            // Create circular clipping path
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Draw the image centered
+            const imgSize = radius * 2;
+            ctx.drawImage(this.image, pos.x - radius, pos.y - radius, imgSize, imgSize);
+            
+            ctx.restore();
+            
+            // Add subtle glow around the planet
+            const haloGradient = ctx.createRadialGradient(
+                pos.x, pos.y, radius,
+                pos.x, pos.y, radius * 1.5
+            );
+            haloGradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            haloGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = haloGradient;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // For acquisition view or if image not loaded, draw simple colored circle
+            
+            // Add a glow for telescope view (large scale)
+            if (scale > 3) {
+                const haloGradient = ctx.createRadialGradient(
+                    pos.x, pos.y, 0,
+                    pos.x, pos.y, radius * 3
+                );
+                const colorMatch = this.color.match(/#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i);
+                if (colorMatch) {
+                    const r = parseInt(colorMatch[1], 16);
+                    const g = parseInt(colorMatch[2], 16);
+                    const b = parseInt(colorMatch[3], 16);
+                    haloGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.4)`);
+                    haloGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.2)`);
+                    haloGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                } else {
+                    haloGradient.addColorStop(0, this.color);
+                    haloGradient.addColorStop(1, 'rgba(255,255,255,0)');
+                }
+                ctx.fillStyle = haloGradient;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, radius * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw main planet
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+            
+            // Create gradient
+            const gradient = ctx.createRadialGradient(
+                pos.x, pos.y, 0,
+                pos.x, pos.y, radius * 1.5
+            );
+            gradient.addColorStop(0, '#FFFFFF');  // Bright core
+            gradient.addColorStop(0.3, this.color);
+            gradient.addColorStop(0.7, this.color);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
     }
 
     generateFeatures() {
@@ -337,101 +483,7 @@ class Planet extends CelestialObject {
         }
         return features;
     }
-
-    draw(ctx, pos, canvas, fov, scale = 1.0) {
-        const radius = Math.max(2, (6 - this.magnitude) * scale);
-        
-        // Save context for features
-        ctx.save();
-        ctx.translate(pos.x, pos.y);
-
-        // Draw planet features
-        this.features.forEach(feature => {
-            switch(feature.type) {
-                case 'band':
-                    ctx.fillStyle = feature.color;
-                    ctx.beginPath();
-                    ctx.ellipse(0, feature.y * radius, radius, feature.width * radius, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-                case 'spot':
-                    ctx.fillStyle = feature.color;
-                    ctx.beginPath();
-                    ctx.ellipse(
-                        feature.x * radius,
-                        feature.y * radius,
-                        feature.size * radius,
-                        feature.size * radius * 0.6,
-                        0, 0, Math.PI * 2
-                    );
-                    ctx.fill();
-                    break;
-                case 'rings':
-                    // Draw rings behind planet
-                    ctx.strokeStyle = feature.color;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.ellipse(0, 0,
-                        radius * feature.outerRadius,
-                        radius * feature.outerRadius * 0.3,
-                        0, Math.PI, Math.PI * 2);
-                    ctx.stroke();
-                    break;
-                case 'cap':
-                    ctx.fillStyle = feature.color;
-                    ctx.beginPath();
-                    ctx.ellipse(0, feature.y * radius,
-                        radius * 0.8,
-                        feature.size * radius,
-                        0, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-                case 'region':
-                    ctx.fillStyle = feature.color;
-                    ctx.beginPath();
-                    ctx.ellipse(
-                        feature.x * radius,
-                        feature.y * radius,
-                        feature.size * radius,
-                        feature.size * radius * 0.7,
-                        0, 0, Math.PI * 2
-                    );
-                    ctx.fill();
-                    break;
-            }
-        });
-
-        // Draw main planet body
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-
-        // Draw rings in front
-        if (this.hasRings) {
-            const rings = this.features.find(f => f.type === 'rings');
-            ctx.strokeStyle = rings.color;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.ellipse(0, 0,
-                radius * rings.outerRadius,
-                radius * rings.outerRadius * 0.3,
-                0, 0, Math.PI);
-            ctx.stroke();
-        }
-
-        ctx.restore();
-
-        // Draw moons
-        this.moons.forEach(moon => moon.draw(ctx, pos, canvas, fov, scale));
-    }
-
-    update(date) {
-        // Update position based on current date
-        this.updatePosition(date);
-    }
 }
-*/
 
 class TelescopeSimulator {
     constructor() {
@@ -457,12 +509,24 @@ class TelescopeSimulator {
         this.exposureBufferCtx.fillStyle = '#000000';
         this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
 
+        // Initialize simulation date
+        this.simulationDate = new Date();
+        
         // Initialize celestial objects from configuration
         this.objects = [];
         
         // Add stars from configuration
         skyConfig.stars.forEach(starConfig => {
             this.objects.push(new Star(starConfig));
+        });
+
+        // Add all planets
+        const planetNames = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+        planetNames.forEach(name => {
+            const planet = new Planet(name);
+            planet.updatePosition(this.simulationDate);
+            this.objects.push(planet);
+            console.log(`${name}: RA=${formatRADegrees(planet.ra)}, Dec=${planet.dec.toFixed(2)}°, Mag=${planet.magnitude.toFixed(1)}`);
         });
 
         // Add satellites
@@ -1194,15 +1258,21 @@ class TelescopeSimulator {
         this.lastUpdate = now;
         this.simulationTime += elapsedSeconds;
 
+        // Update simulation date slowly (1 minute of real time per second)
+        this.simulationDate = new Date(this.simulationDate.getTime() + elapsedSeconds * 60 * 1000);
+
         // Update
         this.updateSlew(elapsedSeconds);
         this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
         this.updateDrift(elapsedSeconds);
         
-        // Update satellites
+        // Update dynamic objects
         this.objects.forEach(obj => {
-            if (obj instanceof Satellite) {
+            if (obj instanceof Planet) {
+                // Update planet positions every frame (they move slowly)
+                obj.updatePosition(this.simulationDate);
+            } else if (obj instanceof Satellite) {
                 obj.update(elapsedSeconds);
             }
         });
