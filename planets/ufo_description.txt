@@ -1,0 +1,17 @@
+UFO PLACEHOLDER IMAGE
+
+Create a PNG image (512x512 recommended) of a UFO/flying saucer with:
+- Classic saucer shape
+- Transparent background (alpha channel)
+- Glowing windows or lights
+- Metallic appearance
+- Can be stylized or realistic
+
+This will be displayed in the telescope view when kids find it at:
+RA = 10h 00m (150°)
+Dec = +25°
+(Located in the Leo constellation)
+
+The UFO will have a mysterious green pulsing glow effect added by the code.
+
+Save as: ufo.png

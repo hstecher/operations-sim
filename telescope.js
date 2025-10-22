@@ -39,6 +39,9 @@ const PLANET_IMAGES = {
     'Neptune': 'planets/neptune.png'
 };
 
+// UFO image path
+const UFO_IMAGE = 'planets/ufo.png';
+
 // Helper function to format RA from degrees to HH:MM
 function formatRADegrees(raDegrees) {
     const hours = raDegrees / 15;  // Convert to hours
@@ -199,7 +202,7 @@ class Star extends CelestialObject {
 
         // Only update twinkle phase for acquisition/SHWFS views (simulates atmospheric turbulence)
         if (shouldTwinkle) {
-            this.twinklePhase += this.twinkleSpeed * 0.05;
+        this.twinklePhase += this.twinkleSpeed * 0.05;
         }
     }
 }
@@ -290,6 +293,113 @@ class Satellite extends CelestialObject {
     }
 }
 
+class UFO extends CelestialObject {
+    constructor(ra, dec) {
+        // UFO has a magnitude similar to Mars for visibility
+        super(ra, dec, 1.0);
+        
+        // Load UFO image
+        this.image = null;
+        this.imageLoaded = false;
+        this.loadImage();
+        
+        // Add a pulsing glow effect
+        this.glowPhase = Math.random() * Math.PI * 2;
+        this.glowSpeed = 3;
+        
+        // Simple spectra (mysterious!)
+        this.spectra = {
+            type: 'Unknown',
+            peaks: [400, 500, 600, 700],
+            intensities: [0.8, 0.9, 0.8, 0.7]
+        };
+    }
+    
+    loadImage() {
+        const img = new Image();
+        img.onload = () => {
+            this.image = img;
+            this.imageLoaded = true;
+        };
+        img.onerror = () => {
+            console.warn(`UFO image not found: ${UFO_IMAGE}`);
+            this.imageLoaded = false;
+        };
+        img.src = UFO_IMAGE;
+    }
+    
+    draw(ctx, pos, scale = 1.0) {
+        // Calculate size similar to Mars
+        let baseRadius = Math.max(3, (6 - this.magnitude) * scale);
+        const radius = baseRadius;
+        
+        // Update glow phase
+        this.glowPhase += this.glowSpeed * 0.05;
+        const glow = Math.sin(this.glowPhase) * 0.3 + 0.7;
+        
+        // In telescope/exposure view, use the image
+        if (scale > 3 && this.imageLoaded && this.image) {
+            ctx.save();
+            
+            // Calculate aspect ratio
+            const imgWidth = this.image.width;
+            const imgHeight = this.image.height;
+            const aspectRatio = imgWidth / imgHeight;
+            
+            let displayWidth, displayHeight;
+            if (aspectRatio > 1) {
+                displayWidth = radius * 2 * aspectRatio;
+                displayHeight = radius * 2;
+            } else {
+                displayWidth = radius * 2;
+                displayHeight = radius * 2 / aspectRatio;
+            }
+            
+            // Draw the UFO image
+            ctx.globalAlpha = glow;
+            ctx.drawImage(
+                this.image, 
+                pos.x - displayWidth / 2, 
+                pos.y - displayHeight / 2, 
+                displayWidth, 
+                displayHeight
+            );
+            ctx.globalAlpha = 1.0;
+            
+            ctx.restore();
+            
+            // Add mysterious pulsing glow
+            const haloGradient = ctx.createRadialGradient(
+                pos.x, pos.y, radius,
+                pos.x, pos.y, radius * 2
+            );
+            haloGradient.addColorStop(0, `rgba(0, 255, 100, ${glow * 0.4})`);
+            haloGradient.addColorStop(1, 'rgba(0, 255, 100, 0)');
+            ctx.fillStyle = haloGradient;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius * 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // In acquisition view, draw as mysterious green dot
+            const glowRadius = radius * glow;
+            
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
+            
+            const gradient = ctx.createRadialGradient(
+                pos.x, pos.y, 0,
+                pos.x, pos.y, glowRadius * 1.5
+            );
+            gradient.addColorStop(0, '#00FF88');
+            gradient.addColorStop(0.5, '#00FF88');
+            gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+    }
+}
+
 class Planet extends CelestialObject {
     constructor(name) {
         // Start with default position, will be updated by ephemeris
@@ -348,7 +458,17 @@ class Planet extends CelestialObject {
 
     draw(ctx, pos, scale = 1.0) {
         // Calculate radius based on magnitude and scale
-        const baseRadius = Math.max(3, (6 - this.magnitude) * scale);
+        let baseRadius = Math.max(3, (6 - this.magnitude) * scale);
+        
+        // Boost size for outer planets so kids can see them better
+        if (scale > 3) {  // Only in telescope/exposure view
+            if (this.name === 'Uranus') {
+                baseRadius *= 7;  // Make Uranus easier to see
+            } else if (this.name === 'Neptune') {
+                baseRadius *= 5;  // Make Neptune easier to see (smaller than Uranus)
+            }
+        }
+        
         const radius = baseRadius;
         
         // In telescope/exposure view (large scale), use real image if loaded
@@ -528,7 +648,7 @@ class TelescopeSimulator {
 
         // Initialize simulation date
         this.simulationDate = new Date();
-        
+
         // Initialize celestial objects from configuration
         this.objects = [];
         
@@ -545,6 +665,11 @@ class TelescopeSimulator {
             this.objects.push(planet);
             console.log(`${name}: RA=${formatRADegrees(planet.ra)}, Dec=${planet.dec.toFixed(2)}°, Mag=${planet.magnitude.toFixed(1)}`);
         });
+        
+        // Add the secret UFO! Positioned at RA=10h, Dec=+25° (in Leo constellation)
+        const ufo = new UFO(150.0, 25.0);  // RA in degrees, Dec in degrees
+        this.objects.push(ufo);
+        console.log(`UFO: RA=${formatRADegrees(ufo.ra)}, Dec=${ufo.dec.toFixed(2)}°, Mag=${ufo.magnitude.toFixed(1)} 🛸`);
 
         // Add satellites
         for (let i = 0; i < SATELLITE_COUNT; i++) {
@@ -897,7 +1022,7 @@ class TelescopeSimulator {
             if (pos.x >= 0 && pos.x <= ctx.canvas.width && 
                 pos.y >= 0 && pos.y <= ctx.canvas.height) {
                 // For exposure, draw with reduced opacity
-                if (isExposure) {
+                    if (isExposure) {
                     ctx.globalAlpha = 0.04;
                 }
                 
@@ -905,8 +1030,8 @@ class TelescopeSimulator {
                 const drawScale = isTelescopeView ? scale * 8 : scale;
                 obj.draw(ctx, pos, drawScale);
                 
-                if (isExposure) {
-                    ctx.globalAlpha = 1.0;
+                    if (isExposure) {
+                        ctx.globalAlpha = 1.0;
                 }
             }
         });
@@ -962,7 +1087,7 @@ class TelescopeSimulator {
                     // Only draw if within the quadrant bounds
                     if (adjustedPos.x >= quadX && adjustedPos.x <= quadX + cellSize &&
                         adjustedPos.y >= quadY && adjustedPos.y <= quadY + cellSize) {
-                        obj.draw(ctx, adjustedPos, 0.5);
+                            obj.draw(ctx, adjustedPos, 0.5);
                     }
                 });
 
@@ -1192,7 +1317,7 @@ class TelescopeSimulator {
             // Use same scale as telescope view (8x) to match what's seen
             visibleObjects.forEach(obj => {
                 const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.exposureBuffer);
-                this.exposureBufferCtx.globalAlpha = 0.02;
+                    this.exposureBufferCtx.globalAlpha = 0.02;
                 obj.draw(this.exposureBufferCtx, pos, 8.0);  // Match telescope view scale
                 this.exposureBufferCtx.globalAlpha = 1.0;
             });
