@@ -67,80 +67,31 @@ const PLANET_COLORS = {
     'Jupiter': '#DAA520',
     'Saturn': '#F4E4C1',
     'Uranus': '#4FD0E7',
-    'Neptune': '#4169E1'
-};
-
-// Local planet image paths - replace these PNG files with real planet images
-const PLANET_IMAGES = {
-    'Mercury': 'planets/mercury.png',
-    'Venus': 'planets/venus.png',
-    'Mars': 'planets/mars.png',
-    'Jupiter': 'planets/jupiter.png',
-    'Saturn': 'planets/saturn.png',
-    'Uranus': 'planets/uranus.png',
-    'Neptune': 'planets/neptune.png'
+    'Neptune': '#4169E1',
+    'Moon': '#DDDDDD',
+    'Pluto': '#E8D5B5'
 };
 
 // UFO image path
 const UFO_IMAGE = 'planets/ufo.png';
 
-// Deep sky object image paths
-const DSO_IMAGES = {
-    'M31': 'dso/m31_andromeda.png',           // Andromeda Galaxy
-    'M42': 'dso/m42_orion.png',               // Orion Nebula
-    'M51': 'dso/m51_whirlpool.png',           // Whirlpool Galaxy
-    'M57': 'dso/m57_ring.png',                // Ring Nebula
-    'M1': 'dso/m1_crab.png',                  // Crab Nebula
-    'M8': 'dso/m8_lagoon.png',                // Lagoon Nebula
-    'NGC7293': 'dso/ngc7293_helix.png'        // Helix Nebula
+const KIND_LABELS = {
+    planet: 'Planet', galaxy: 'Galaxy', nebula: 'Nebula', cluster: 'Star cluster', star: 'Star',
+    machine: 'Space machine', probe: 'Space probe', mystery: 'Mystery'
 };
 
-// Everything kids can pick from the list. Planets get their position from the ephemeris.
-const TARGETS = [
-    { id: 'Mercury', name: 'Mercury', kind: 'planet', image: PLANET_IMAGES.Mercury,
-      fact: 'The closest planet to the Sun. A year there lasts only 88 days!' },
-    { id: 'Venus', name: 'Venus', kind: 'planet', image: PLANET_IMAGES.Venus,
-      fact: 'The hottest planet. Thick clouds trap heat, so it is hotter than a pizza oven.' },
-    { id: 'Mars', name: 'Mars', kind: 'planet', image: PLANET_IMAGES.Mars,
-      fact: 'The Red Planet. Its color comes from rusty dust.' },
-    { id: 'Jupiter', name: 'Jupiter', kind: 'planet', image: PLANET_IMAGES.Jupiter,
-      fact: 'The biggest planet. More than 1,000 Earths could fit inside!' },
-    { id: 'Saturn', name: 'Saturn', kind: 'planet', image: PLANET_IMAGES.Saturn,
-      fact: 'Its rings are made of billions of chunks of ice and rock.' },
-    { id: 'Uranus', name: 'Uranus', kind: 'planet', image: PLANET_IMAGES.Uranus,
-      fact: 'An ice giant that spins on its side, like a rolling ball.' },
-    { id: 'Neptune', name: 'Neptune', kind: 'planet', image: PLANET_IMAGES.Neptune,
-      fact: 'The windiest planet. Its storms blow faster than a jet plane.' },
-    { id: 'M31', name: 'Andromeda Galaxy', kind: 'galaxy', ra: 10.685, dec: 41.269, mag: 3.4, image: DSO_IMAGES.M31,
-      fact: 'A giant spiral of a trillion stars. Its light left 2.5 million years ago!' },
-    { id: 'M51', name: 'Whirlpool Galaxy', kind: 'galaxy', ra: 202.47, dec: 47.195, mag: 8.4, image: DSO_IMAGES.M51,
-      fact: 'A spiral galaxy doing a slow dance with a smaller galaxy next to it.' },
-    { id: 'M42', name: 'Orion Nebula', kind: 'nebula', ra: 83.822, dec: -5.391, mag: 4.0, image: DSO_IMAGES.M42,
-      fact: 'A giant cloud where brand-new stars are being born.' },
-    { id: 'M57', name: 'Ring Nebula', kind: 'nebula', ra: 283.40, dec: 33.029, mag: 8.8, image: DSO_IMAGES.M57,
-      fact: 'A dying star puffed its outer layers into a glowing smoke ring.' },
-    { id: 'M1', name: 'Crab Nebula', kind: 'nebula', ra: 83.633, dec: 22.014, mag: 8.4, image: DSO_IMAGES.M1,
-      fact: 'Leftovers of a star that exploded. People saw the blast in the year 1054!' },
-    { id: 'M8', name: 'Lagoon Nebula', kind: 'nebula', ra: 270.93, dec: -24.38, mag: 6.0, image: DSO_IMAGES.M8,
-      fact: 'A huge glowing cloud of gas where new stars form.' },
-    { id: 'NGC7293', name: 'Helix Nebula', kind: 'nebula', ra: 337.41, dec: -20.837, mag: 7.6, image: DSO_IMAGES.NGC7293,
-      fact: 'Nicknamed the "Eye of God": the glowing shell of a dying star.' },
-    { id: 'Sirius', name: 'Sirius', kind: 'star', ra: 101.287, dec: -16.716,
-      fact: 'The brightest star in the night sky, also called the Dog Star.' },
-    { id: 'Betelgeuse', name: 'Betelgeuse', kind: 'star', ra: 88.793, dec: 7.407,
-      fact: 'A red supergiant. If it replaced our Sun, it would swallow Mars!' },
-    { id: 'Vega', name: 'Vega', kind: 'star', ra: 279.235, dec: 38.784,
-      fact: 'A bright blue-white star. In 12,000 years it will be our North Star.' },
-    { id: 'Polaris', name: 'Polaris', kind: 'star', ra: 37.955, dec: 89.264,
-      fact: 'The North Star. It hardly moves in our sky because it sits above Earth\'s North Pole.' },
-    { id: 'Antares', name: 'Antares', kind: 'star', ra: 247.352, dec: -26.432,
-      fact: 'A giant red star. Its name means "rival of Mars" because both look red.' },
-    { id: 'UFO', name: 'UFO?!', kind: 'mystery', ra: 150.0, dec: 25.0, image: UFO_IMAGE,
-      fact: 'Nobody knows what this is... but YOU found it!',
-      clue: 'Astronomers saw something strange at RA 10:00, Dec +25. Type those numbers into "Go to coordinates" and press Go!' }
+// Tabs over the target list
+const CATEGORIES = [
+    { key: 'all', label: 'All' },
+    { key: 'solar', label: '🪐 Solar System', kinds: ['planet'] },
+    { key: 'stars', label: '⭐ Stars', kinds: ['star'] },
+    { key: 'galaxies', label: '🌌 Galaxies', kinds: ['galaxy'] },
+    { key: 'nebulae', label: '☁️ Nebulae', kinds: ['nebula'] },
+    { key: 'clusters', label: '✨ Clusters', kinds: ['cluster'] },
+    { key: 'machines', label: '🛰️ Space Machines', kinds: ['machine', 'probe'] }
 ];
 
-const KIND_LABELS = { planet: 'Planet', galaxy: 'Galaxy', nebula: 'Nebula', star: 'Star', mystery: 'Mystery' };
+const STARLINK_SPACING = 0.03;  // degrees between satellites in a Starlink train
 
 // What each kind of light looks like, in kid words (keyed by spectra.type)
 const SPECTRUM_CAPTIONS = {
@@ -154,6 +105,8 @@ const SPECTRUM_CAPTIONS = {
     'Reflected': 'sunlight bouncing off a planet',
     'Galaxy': 'billions of stars mixed together',
     'Nebula': 'glowing gas in space',
+    'Cluster': 'thousands of stars shining together',
+    'Machine': 'sunlight bouncing off a spacecraft',
     'Unknown': 'something nobody has seen before! 👽'
 };
 
@@ -217,6 +170,59 @@ function saveSet(key, set) {
         localStorage.setItem(key, JSON.stringify([...set]));
     } catch (e) {
         // Storage can be unavailable (private windows); progress just won't persist
+    }
+}
+
+// Loads a picture the first time it's needed and fades its edges to clear, so
+// rectangular photos blend into the sky instead of showing up as boxes
+class SoftImage {
+    constructor(path) {
+        this.path = path;
+        this.canvas = null;
+        this.requested = false;
+    }
+
+    ready() {
+        if (!this.requested && this.path) {
+            this.requested = true;
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                // Pictures with a see-through background (spacecraft renders) need no fade
+                if (ctx.getImageData(0, 0, 1, 1).data[3] < 250) {
+                    this.canvas = canvas;
+                    return;
+                }
+                // Oval fade: a unit-circle gradient stretched to the picture's shape
+                ctx.globalCompositeOperation = 'destination-in';
+                ctx.setTransform(img.width / 2, 0, 0, img.height / 2, img.width / 2, img.height / 2);
+                const fade = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+                fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+                fade.addColorStop(0.7, 'rgba(0, 0, 0, 1)');
+                fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = fade;
+                ctx.fillRect(-1, -1, 2, 2);
+                this.canvas = canvas;
+            };
+            img.onerror = () => console.warn(`Image not found: ${this.path}`);
+            img.src = this.path;
+        }
+        return !!this.canvas;
+    }
+
+    // Draw centered on pos, with the longer side `size` px
+    draw(ctx, pos, size, composite = 'source-over') {
+        const aspect = this.canvas.width / this.canvas.height;
+        const w = aspect >= 1 ? size : size * aspect;
+        const h = aspect >= 1 ? size / aspect : size;
+        ctx.save();
+        ctx.globalCompositeOperation = composite;
+        ctx.drawImage(this.canvas, pos.x - w / 2, pos.y - h / 2, w, h);
+        ctx.restore();
     }
 }
 
@@ -455,109 +461,171 @@ class Satellite extends CelestialObject {
 }
 
 class DeepSkyObject extends CelestialObject {
-    constructor(name, ra, dec, magnitude, type) {
+    constructor(name, ra, dec, magnitude, type, imagePath, sizeArcmin) {
         super(ra, dec, magnitude);
         this.name = name;
-        this.type = type;  // 'galaxy' or 'nebula'
-        
-        // Load DSO image
-        this.image = null;
-        this.imageLoaded = false;
-        this.loadImage();
-        
-        // No spectra for extended objects
+        this.type = type;  // 'galaxy', 'nebula' or 'cluster'
+        this.sizeArcmin = sizeArcmin || 10;
+        this.picture = new SoftImage(imagePath);
+
+        const spectraTypes = { galaxy: 'Galaxy', nebula: 'Nebula', cluster: 'Cluster' };
         this.spectra = {
-            type: type === 'galaxy' ? 'Galaxy' : 'Nebula',
+            type: spectraTypes[type] || 'Nebula',
             peaks: [450, 550, 650],
             intensities: [0.6, 0.7, 0.6]
         };
     }
-    
-    loadImage() {
-        const imagePath = DSO_IMAGES[this.name];
-        if (!imagePath) {
-            console.warn(`No image path defined for ${this.name}`);
+
+    draw(ctx, pos, scale = 1.0) {
+        // In telescope/exposure view, use the picture at its real size, but never so
+        // small that kids miss it or bigger than the view
+        if (scale > 3 && this.picture.ready()) {
+            const width = ctx.canvas.width;
+            const size = clamp(this.sizeArcmin * width / (TELESCOPE_FOV * 60), width * 0.37, width * 0.94);
+            ctx.save();
+            ctx.globalAlpha *= 0.9;
+            this.picture.draw(ctx, pos, size, 'lighter');  // Light adds to the stars behind
+            ctx.restore();
             return;
         }
-        
-        const img = new Image();
-        img.onload = () => {
-            this.image = img;
-            this.imageLoaded = true;
-        };
-        img.onerror = () => {
-            console.warn(`DSO image not found: ${imagePath}`);
-            this.imageLoaded = false;
-        };
-        img.src = imagePath;
+
+        // In the Sky Map, draw as a fuzzy patch
+        const fuzzRadius = Math.max(8, (12 - this.magnitude) * scale) * 1.2;
+        const colors = { nebula: '255, 180, 200', galaxy: '220, 220, 255', cluster: '255, 240, 210' };
+        const color = colors[this.type] || colors.galaxy;
+        for (let i = 3; i > 0; i--) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, fuzzRadius * i * 0.5, 0, Math.PI * 2);
+            const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, fuzzRadius * i * 0.5);
+            const alpha = 0.25 / i;
+            gradient.addColorStop(0, `rgba(${color}, ${alpha * 3})`);
+            gradient.addColorStop(1, `rgba(${color}, 0)`);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
     }
-    
+}
+
+// Satellites, space stations and rocket stages circling Earth. Real ones cross the
+// sky in a few minutes; these are slowed way down so kids can catch them.
+class SpaceMachine extends CelestialObject {
+    constructor(target, angle) {
+        super(0, 0, 2);
+        this.name = target.id;
+        this.orbit = target.orbit;
+        this.angle = angle;  // degrees along the orbit
+        this.picture = target.orbit.size && !target.orbit.tumble ? new SoftImage(target.image) : null;
+        this.flashPhase = Math.random() * Math.PI * 2;
+        this.spectra = {
+            type: 'Machine',
+            peaks: [430, 486.1, 550, 656.3],
+            intensities: [0.7, 0.8, 0.9, 0.7]
+        };
+        this.updatePosition();
+    }
+
+    update(elapsedSeconds) {
+        this.angle += this.orbit.speed * elapsedSeconds;
+        this.flashPhase += elapsedSeconds * (this.orbit.tumble ? 2.5 : 1.5);
+        this.updatePosition();
+    }
+
+    // A tilted circle around the sky: node turns it, incl tips it
+    updatePosition() {
+        const node = this.orbit.node * DEG;
+        const incl = this.orbit.incl * DEG;
+        const a = this.angle * DEG;
+        const x = Math.cos(node) * Math.cos(a) - Math.sin(node) * Math.sin(a) * Math.cos(incl);
+        const y = Math.sin(node) * Math.cos(a) + Math.cos(node) * Math.sin(a) * Math.cos(incl);
+        const z = Math.sin(a) * Math.sin(incl);
+        this.ra = (Math.atan2(y, x) / DEG + 360) % 360;
+        this.dec = Math.asin(clamp(z, -1, 1)) / DEG;
+    }
+
     draw(ctx, pos, scale = 1.0) {
-        // DSOs are extended objects, so they appear much larger than stars
-        let baseSize = Math.max(8, (12 - this.magnitude) * scale);
-        
-        // Make them even bigger in telescope view for impressive visuals
-        if (scale > 3) {
-            baseSize *= 3;  // 3x larger in telescope/exposure view
+        const zoomed = scale > 3;
+        if (zoomed && this.orbit.tumble) {
+            this.drawRocketStage(ctx, pos, this.orbit.size * scale / 8);
+            return;
         }
-        
-        // In telescope/exposure view, use the image
-        if (scale > 3 && this.imageLoaded && this.image) {
-            ctx.save();
-            
-            // Calculate aspect ratio
-            const imgWidth = this.image.width;
-            const imgHeight = this.image.height;
-            const aspectRatio = imgWidth / imgHeight;
-            
-            let displayWidth, displayHeight;
-            if (aspectRatio > 1) {
-                displayWidth = baseSize * 2 * aspectRatio;
-                displayHeight = baseSize * 2;
-            } else {
-                displayWidth = baseSize * 2;
-                displayHeight = baseSize * 2 / aspectRatio;
-            }
-            
-            // Draw the DSO image with slight transparency (they're faint)
-            ctx.globalAlpha = 0.9;
-            ctx.drawImage(
-                this.image, 
-                pos.x - displayWidth / 2, 
-                pos.y - displayHeight / 2, 
-                displayWidth, 
-                displayHeight
-            );
-            ctx.globalAlpha = 1.0;
-            
-            ctx.restore();
-        } else {
-            // In acquisition view, draw as fuzzy patch
-            const fuzzRadius = baseSize * 1.2;  // Larger fuzzy patches
-            
-            // Multiple layers for fuzzy appearance
-            for (let i = 3; i > 0; i--) {
-                ctx.beginPath();
-                ctx.arc(pos.x, pos.y, fuzzRadius * i * 0.5, 0, Math.PI * 2);
-                
-                const gradient = ctx.createRadialGradient(
-                    pos.x, pos.y, 0,
-                    pos.x, pos.y, fuzzRadius * i * 0.5
-                );
-                
-                const alpha = 0.25 / i;  // Increased brightness
-                if (this.type === 'nebula') {
-                    gradient.addColorStop(0, `rgba(255, 180, 200, ${alpha * 3})`);
-                    gradient.addColorStop(1, `rgba(255, 180, 200, 0)`);
-                } else {
-                    gradient.addColorStop(0, `rgba(220, 220, 255, ${alpha * 3})`);
-                    gradient.addColorStop(1, `rgba(220, 220, 255, 0)`);
-                }
-                
-                ctx.fillStyle = gradient;
-                ctx.fill();
-            }
+        if (zoomed && this.picture && this.picture.ready()) {
+            this.picture.draw(ctx, pos, this.orbit.size * scale / 8);
+            return;
         }
+
+        // A sunlit dot: Sky Map view, and each Starlink satellite
+        const flash = this.orbit.tumble ? 0.4 + 0.6 * Math.abs(Math.sin(this.flashPhase)) : 0.85 + 0.15 * Math.sin(this.flashPhase);
+        const radius = zoomed ? 5 * scale / 8 : 2.5;
+        const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius * 2);
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${flash})`);
+        gradient.addColorStop(0.4, `rgba(255, 255, 240, ${flash * 0.8})`);
+        gradient.addColorStop(1, 'rgba(255, 255, 240, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // An empty rocket stage, slowly tumbling and flashing as the Sun glints off it
+    drawRocketStage(ctx, pos, size) {
+        const glint = 0.45 + 0.55 * Math.abs(Math.sin(this.flashPhase));
+        const w = size * 0.28;
+        const h = size;
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(this.flashPhase * 0.4);
+        ctx.globalAlpha *= glint;
+        const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+        body.addColorStop(0, '#6d7078');
+        body.addColorStop(0.45, '#f4f4f4');
+        body.addColorStop(1, '#4a4c52');
+        ctx.fillStyle = body;
+        ctx.fillRect(-w / 2, -h / 2, w, h * 0.82);
+        ctx.fillStyle = '#2b2d33';
+        ctx.fillRect(-w / 2, -h / 2 + h * 0.12, w, h * 0.06);  // Painted band
+        ctx.fillStyle = '#3a3c42';
+        ctx.beginPath();  // Engine nozzle
+        ctx.moveTo(-w * 0.22, h * 0.32);
+        ctx.lineTo(w * 0.22, h * 0.32);
+        ctx.lineTo(w * 0.38, h / 2);
+        ctx.lineTo(-w * 0.38, h / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+// Spacecraft far beyond Earth. Real telescopes can't see them, so the view shows a
+// picture of the probe at the spot where it really is.
+class SpaceProbe extends CelestialObject {
+    constructor(target) {
+        super(target.ra || 0, target.dec || 0, 30);
+        this.name = target.id;
+        this.antiSun = !!target.antiSun;
+        this.invisible = true;  // Gives the wavefront sensor and spectrum nothing to measure
+        this.picture = new SoftImage(target.image);
+        this.pulse = 0;
+    }
+
+    updatePosition(date) {
+        if (!this.antiSun) return;
+        // JWST sits about 1.5 million km straight away from the Sun
+        const sun = Astronomy.EquatorFromVector(Astronomy.GeoVector('Sun', date, true));
+        this.ra = (sun.ra * 15 + 180) % 360;
+        this.dec = -sun.dec;
+    }
+
+    draw(ctx, pos, scale = 1.0) {
+        this.pulse += 0.04;
+        const alpha = 0.55 + 0.3 * Math.sin(this.pulse);
+        if (scale > 3 && this.picture.ready()) {
+            this.picture.draw(ctx, pos, 170 * scale / 8);
+            return;
+        }
+        ctx.fillStyle = `rgba(110, 220, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, scale > 3 ? 1.5 : 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 
@@ -669,11 +737,12 @@ class UFO extends CelestialObject {
 }
 
 class Planet extends CelestialObject {
-    constructor(name) {
+    constructor(name, imagePath) {
         // Start with default position, will be updated by ephemeris
         super(0, 0, 0);
         this.name = name;
         this.color = PLANET_COLORS[name] || '#FFFFFF';
+        this.imagePath = imagePath;
         
         // Simple spectra for reflected sunlight
         this.spectra = {
@@ -696,10 +765,10 @@ class Planet extends CelestialObject {
             this.imageLoaded = true;
         };
         img.onerror = () => {
-            console.warn(`Planet image not found: ${PLANET_IMAGES[this.name]} - using colored circle fallback`);
+            console.warn(`Planet image not found: ${this.imagePath} - using colored circle fallback`);
             this.imageLoaded = false;
         };
-        img.src = PLANET_IMAGES[this.name];
+        img.src = this.imagePath;
     }
     
     updatePosition(date) {
@@ -732,9 +801,12 @@ class Planet extends CelestialObject {
         if (scale > 3) {  // Only in telescope/exposure view
             if (this.name === 'Uranus') {
                 baseRadius *= 7;  // Make Uranus easier to see
-            } else if (this.name === 'Neptune') {
-                baseRadius *= 5;  // Make Neptune easier to see (smaller than Uranus)
+            } else if (this.name === 'Neptune' || this.name === 'Pluto') {
+                baseRadius *= 5;  // Make Neptune (and tiny Pluto) easier to see
             }
+        }
+        if (this.name === 'Moon') {
+            baseRadius = 22 * scale;  // The Moon just about fills the telescope view
         }
         
         const radius = baseRadius;
@@ -999,21 +1071,38 @@ class TelescopeSimulator {
             this.objects.push(new Star(starConfig));
         });
 
-        this.planets = {};
-        TARGETS.filter(t => t.kind === 'planet').forEach(t => {
-            const planet = new Planet(t.id);
-            planet.updatePosition(this.simulationDate);
-            this.objects.push(planet);
-            this.planets[t.id] = planet;
+        // Targets whose position changes, by target id
+        this.movers = {};
+        TARGETS.forEach(t => {
+            if (t.kind === 'planet') {
+                const planet = new Planet(t.id, t.image);
+                planet.updatePosition(this.simulationDate);
+                this.objects.push(planet);
+                this.movers[t.id] = planet;
+            } else if (t.kind === 'galaxy' || t.kind === 'nebula' || t.kind === 'cluster') {
+                this.objects.push(new DeepSkyObject(t.id, t.ra, t.dec, t.mag, t.kind, t.image, t.size));
+            } else if (t.kind === 'probe') {
+                const probe = new SpaceProbe(t);
+                probe.updatePosition(this.simulationDate);
+                this.objects.push(probe);
+                this.movers[t.id] = probe;
+            } else if (t.kind === 'machine') {
+                // Some ride along behind another: Crew Dragon chasing the ISS
+                const leader = t.orbit.follows ? this.movers[t.orbit.follows] : null;
+                const angle = leader ? leader.angle - t.orbit.gap : Math.random() * 360;
+                const machine = new SpaceMachine(t, angle);
+                this.objects.push(machine);
+                this.movers[t.id] = machine;
+                // A Starlink "train" is a line of satellites on the same orbit
+                for (let i = 1; i < (t.orbit.train || 0); i++) {
+                    this.objects.push(new SpaceMachine(t, angle - i * STARLINK_SPACING));
+                }
+            } else if (t.kind === 'mystery') {
+                // The secret UFO, in Leo
+                this.objects.push(new UFO(t.ra, t.dec));
+            }
         });
-
-        // The secret UFO, in Leo
-        const ufoTarget = TARGETS.find(t => t.kind === 'mystery');
-        this.objects.push(new UFO(ufoTarget.ra, ufoTarget.dec));
-
-        TARGETS.filter(t => t.kind === 'galaxy' || t.kind === 'nebula').forEach(t => {
-            this.objects.push(new DeepSkyObject(t.id, t.ra, t.dec, t.mag, t.kind));
-        });
+        this.lockPrevious = null;
 
         for (let i = 0; i < SATELLITE_COUNT; i++) {
             this.objects.push(new Satellite());
@@ -1082,6 +1171,7 @@ class TelescopeSimulator {
             saveButton: document.getElementById('save-exposure-button'),
             targets: document.getElementById('targets'),
             targetList: document.getElementById('target-list'),
+            targetTabs: document.getElementById('target-tabs'),
             collectionCount: document.getElementById('collection-count'),
             hint: document.getElementById('hint'),
             steps: document.querySelectorAll('#steps li'),
@@ -1224,6 +1314,20 @@ class TelescopeSimulator {
 
     buildTargetList() {
         this.targets = TARGETS;
+        this.category = 'all';
+        this.tabButtons = new Map();
+        CATEGORIES.forEach(cat => {
+            const tab = document.createElement('button');
+            tab.type = 'button';
+            tab.className = 'target-tab';
+            tab.addEventListener('click', () => {
+                this.category = cat.key;
+                this.refreshTargetCards();
+                this.ui.targetList.scrollTop = 0;
+            });
+            this.ui.targetTabs.appendChild(tab);
+            this.tabButtons.set(cat.key, tab);
+        });
         this.targetButtons = new Map();
         this.targets.forEach(t => {
             const button = document.createElement('button');
@@ -1243,19 +1347,32 @@ class TelescopeSimulator {
             const collected = this.collected.has(t.id);
             let thumb;
             if (hidden) thumb = '<span class="thumb thumb-emoji">❓</span>';
-            else if (t.image) thumb = `<img class="thumb" src="${t.image}" alt="">`;
+            else if (t.image) thumb = `<img class="thumb" src="${t.image}" alt="" loading="lazy">`;
             else thumb = '<span class="thumb thumb-emoji">⭐</span>';
             button.innerHTML = `${thumb}
                 <span class="card-text">
                     <span class="card-name">${hidden ? 'Mystery object' : t.name}</span>
-                    <span class="card-kind">${hidden ? 'Click for a clue' : KIND_LABELS[t.kind]}</span>
+                    <span class="card-kind">${hidden ? 'Click for a clue' : t.label || KIND_LABELS[t.kind]}</span>
                 </span>
                 <span class="card-check">${collected ? '✓' : ''}</span>`;
             button.title = hidden ? t.clue : t.fact;
             button.classList.toggle('collected', collected);
             button.classList.toggle('selected', this.selectedTarget === t);
+            button.hidden = !this.inCategory(t, this.category);
+        });
+        CATEGORIES.forEach(cat => {
+            const members = this.targets.filter(t => this.inCategory(t, cat.key));
+            const found = members.filter(t => this.collected.has(t.id)).length;
+            const tab = this.tabButtons.get(cat.key);
+            tab.textContent = `${cat.label} ${found}/${members.length}`;
+            tab.classList.toggle('active', cat.key === this.category);
         });
         this.ui.collectionCount.textContent = `${this.collected.size} / ${this.targets.length} collected`;
+    }
+
+    inCategory(target, key) {
+        const cat = CATEGORIES.find(c => c.key === key);
+        return !cat.kinds || cat.kinds.includes(target.kind);
     }
 
     isHidden(target) {
@@ -1263,10 +1380,8 @@ class TelescopeSimulator {
     }
 
     targetPosition(target) {
-        if (target.kind === 'planet') {
-            const planet = this.planets[target.id];
-            return { ra: planet.ra, dec: planet.dec };
-        }
+        const mover = this.movers[target.id];
+        if (mover) return { ra: mover.ra, dec: mover.dec };
         return { ra: target.ra, dec: target.dec };
     }
 
@@ -1508,6 +1623,12 @@ class TelescopeSimulator {
 
     updateSlew(elapsedSeconds) {
         if (!this.slewing) return;
+        // Chase targets that move, like satellites
+        if (this.selectedTarget && this.movers[this.selectedTarget.id]) {
+            const pos = this.targetPosition(this.selectedTarget);
+            this.targetRa = pos.ra;
+            this.targetDec = pos.dec;
+        }
         let raDiff = this.targetRa - this.telescopeRa;
         if (raDiff > 180) raDiff -= 360;
         else if (raDiff < -180) raDiff += 360;
@@ -1550,6 +1671,25 @@ class TelescopeSimulator {
         if (!this.tracking && !this.slewing) {
             this.telescopeRa = (this.telescopeRa + SKY_DRIFT_RATE * elapsedSeconds) % 360;
         }
+    }
+
+    // While following, stay locked on a target that moves on its own (satellites, the Moon)
+    updateTargetLock() {
+        const target = this.tracking && !this.slewing ? this.currentTarget : null;
+        if (!target || !this.movers[target.id]) {
+            this.lockPrevious = null;
+            return;
+        }
+        const pos = this.targetPosition(target);
+        const prev = this.lockPrevious;
+        if (prev && prev.id === target.id) {
+            let dRa = pos.ra - prev.ra;
+            if (dRa > 180) dRa -= 360;
+            else if (dRa < -180) dRa += 360;
+            this.telescopeRa = (this.telescopeRa + dRa + 360) % 360;
+            this.telescopeDec = clamp(this.telescopeDec + pos.dec - prev.dec, -90, 90);
+        }
+        this.lockPrevious = { id: target.id, ra: pos.ra, dec: pos.dec };
     }
 
     updateWobble(elapsedSeconds) {
@@ -1753,7 +1893,11 @@ class TelescopeSimulator {
         // Labels for things to find (the mystery object stays a secret)
         ctx.font = '11px system-ui, sans-serif';
         ctx.textAlign = 'left';
-        this.targets.forEach(t => {
+        // Selected target first, then planets, so they win when labels would overlap
+        const placed = [];
+        const order = [...this.targets].sort((a, b) =>
+            (b === this.selectedTarget) - (a === this.selectedTarget) || (b.kind === 'planet') - (a.kind === 'planet'));
+        order.forEach(t => {
             if (t.kind === 'mystery') return;
             const pos = this.targetPosition(t);
             const offset = projectSky(pos.ra, pos.dec, this.telescopeRa, this.telescopeDec);
@@ -1768,6 +1912,9 @@ class TelescopeSimulator {
                 ctx.arc(x, y, 9, 0, Math.PI * 2);
                 ctx.stroke();
             }
+            const box = { x: x + 8, y: y - 17, w: ctx.measureText(t.name).width, h: 13 };
+            if (placed.some(o => box.x < o.x + o.w && o.x < box.x + box.w && box.y < o.y + o.h && o.y < box.y + box.h)) return;
+            placed.push(box);
             ctx.fillStyle = this.collected.has(t.id) ? 'rgba(61, 220, 132, 0.9)' : 'rgba(255, 230, 150, 0.85)';
             ctx.fillText(t.name, x + 8, y - 6);
         });
@@ -1819,11 +1966,12 @@ class TelescopeSimulator {
         // The WFS needs light: use the brightest thing in the telescope view
         let star = null;
         this.inView.forEach(obj => {
+            if (obj.invisible) return;
             if (!star || obj.magnitude < star.magnitude) star = obj;
         });
         const spotBrightness = star ? clamp((9 - star.magnitude) / 8, 0.35, 1) : 0;
 
-        // Mount wobble moves every dot the same way (Steady fixes that);
+        // Mount wobble moves every dot the same way (guiding fixes that);
         // the air moves each dot differently (AO fixes that)
         const common = {
             x: (this.wobble.x / TELESCOPE_FOV) * canvas.width * 0.25,
@@ -2033,7 +2181,7 @@ class TelescopeSimulator {
             case 2:
                 return `🌍 The Earth is spinning, so ${name} is drifting away! Press <b>Follow</b> (or the Space bar).`;
             case 3:
-                return `🎯 ${this.currentTarget ? name + ' is' : 'The view is'} wobbling a little. Press <b>Steady</b> to hold it still.`;
+                return `🎯 ${this.currentTarget ? name + ' is' : 'The view is'} wobbling a little. Press <b>Guiding</b> to hold it still.`;
             case 4:
                 return `✨ The air is making ${name} blurry and shimmery. Press <b>AO</b> to sharpen it!`;
             case 5:
@@ -2079,7 +2227,7 @@ class TelescopeSimulator {
             ui.trackingButton.title = 'Keep up with the spinning sky (Space)';
         }, this.tracking);
         this.setIfChanged('guiding', state => {
-            ui.guidingButton.textContent = `🎯 Steady: ${this.guiding ? 'ON' : 'OFF'}`;
+            ui.guidingButton.textContent = `🎯 Guiding: ${this.guiding ? 'ON' : 'OFF'}`;
             ui.guidingButton.classList.toggle('on', this.guiding);
             ui.guidingButton.classList.toggle('unavailable', !this.tracking);
             ui.guidingButton.title = this.tracking ? 'Stop the wobble (G)' : 'Turn on Follow first';
@@ -2104,7 +2252,10 @@ class TelescopeSimulator {
         let caption;
         if (this.slewing) caption = '🚀 On the way…';
         else if (this.currentTarget && this.currentTarget.kind === 'mystery') caption = `<strong>🛸 ${this.currentTarget.name}</strong> ${this.currentTarget.fact}`;
-        else if (this.currentTarget) caption = `<strong>${this.currentTarget.name}</strong> — ${this.currentTarget.fact}`;
+        else if (this.currentTarget) {
+            caption = `<strong>${this.currentTarget.name}</strong> — ${this.currentTarget.fact}`;
+            if (this.currentTarget.credit) caption += ` <span class="credit">Picture: ${this.currentTarget.credit}</span>`;
+        }
         else if (this.inView.length > 0) caption = 'Just some stars here. Pick a target from the list to find something amazing!';
         else caption = 'Empty sky. Pick a target from the list!';
         this.setIfChanged('caption', v => { ui.caption.innerHTML = v; }, caption);
@@ -2127,16 +2278,18 @@ class TelescopeSimulator {
         this.updateSlew(elapsedSeconds);
         this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
-        this.updateWobble(elapsedSeconds);
-        this.updateAtmosphere(elapsedSeconds);
 
         this.objects.forEach(obj => {
-            if (obj instanceof Planet) {
+            if (obj instanceof Planet || obj instanceof SpaceProbe) {
                 obj.updatePosition(this.simulationDate);
-            } else if (obj instanceof Satellite) {
+            } else if (obj instanceof Satellite || obj instanceof SpaceMachine) {
                 obj.update(elapsedSeconds);
             }
         });
+
+        this.updateTargetLock();
+        this.updateWobble(elapsedSeconds);
+        this.updateAtmosphere(elapsedSeconds);
 
         this.updateNearby();
         this.updateCurrentTarget();

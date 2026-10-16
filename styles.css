@@ -184,6 +184,30 @@ button:disabled {
     padding-right: 4px;
 }
 
+.target-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.target-tab {
+    padding: 4px 8px;
+    font-size: 0.8em;
+    border-radius: 999px;
+}
+
+.target-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+.target-card[hidden] {
+    display: none;
+}
+
 .target-card {
     display: flex;
     align-items: center;
@@ -434,6 +458,13 @@ canvas {
     font-size: 0.9em;
     line-height: 1.35;
     min-height: 2.7em;
+}
+
+.credit {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.78em;
+    opacity: 0.75;
 }
 
 .caption strong {

@@ -21,7 +21,7 @@
             <ol class="steps" id="steps">
                 <li data-step="1"><span class="step-num">1</span>Aim</li>
                 <li data-step="2"><span class="step-num">2</span>Follow</li>
-                <li data-step="3"><span class="step-num">3</span>Steady</li>
+                <li data-step="3"><span class="step-num">3</span>Guiding</li>
                 <li data-step="4"><span class="step-num">4</span>AO</li>
                 <li data-step="5"><span class="step-num">5</span>Picture</li>
                 <li data-step="6"><span class="step-num">6</span>Save</li>
@@ -35,6 +35,7 @@
                         <span id="collection-count" class="count"></span>
                     </div>
                     <p class="targets-note">Click one to point the telescope at it. Take its picture to collect it!</p>
+                    <div id="target-tabs" class="target-tabs"></div>
                     <div id="target-list" class="target-list"></div>
 
                     <div class="expert">
@@ -122,13 +123,13 @@
             <ol class="help-steps">
                 <li><b>👉 Aim</b> &mdash; click a planet, galaxy or star in the list, or click the Sky Map.</li>
                 <li><b>🌍 Follow</b> &mdash; the Earth spins, so the sky slowly drifts away. Follow keeps up with it.</li>
-                <li><b>🎯 Steady</b> &mdash; stops the telescope wobbling.</li>
+                <li><b>🎯 Guiding</b> &mdash; locks onto a star to stop the telescope wobbling.</li>
                 <li><b>✨ AO</b> &mdash; the air above us is bumpy and makes things blurry and shimmery. Adaptive optics bends a special mirror hundreds of times a second to undo it!</li>
                 <li><b>📸 Take Picture</b> &mdash; hold still while the camera collects light.</li>
                 <li><b>💾 Save</b> &mdash; put your picture in the Gallery!</li>
             </ol>
             <p><b>Moving around:</b> arrow keys (or the arrow buttons). Tap for a tiny nudge, hold to go faster.</p>
-            <p><b>Shortcuts:</b> Space = Follow, G = Steady, O = AO, P = Take Picture.</p>
+            <p><b>Shortcuts:</b> Space = Follow, G = Guiding, O = AO, P = Take Picture.</p>
             <p>Collect them all &mdash; and see if you can track down the <b>mystery object</b>! 🕵️</p>
             <button id="help-close" class="big-button">Let's go!</button>
         </div>
@@ -136,6 +137,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
     <script src="skyConfig.js"></script>
+    <script src="targets.js"></script>
     <script src="telescope.js"></script>
 </body>
 </html>
