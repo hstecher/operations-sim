@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import zipfile
 import io
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -59,12 +60,15 @@ def save_exposure():
         return jsonify({'success': False, 'error': 'No selected file'})
     
     try:
-        # Save the file
-        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+        # Save the file (sanitized so a crafted name can't write outside the folder)
+        filename = secure_filename(file.filename)
+        if not filename.endswith('.png'):
+            return jsonify({'success': False, 'error': 'Only PNG files can be saved'})
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
         return jsonify({
             'success': True,
-            'filename': file.filename,
+            'filename': filename,
             'path': filepath
         })
     except Exception as e:
@@ -82,9 +86,9 @@ def download_project():
         # Create the zip file
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             # Add all files in the current directory except the exposures folder and __pycache__
+            skip_dirs = {'__pycache__', 'exposures', '.git', '.venv', 'venv'}
             for root, dirs, files in os.walk('.'):
-                if '__pycache__' in root or 'exposures' in root or '.git' in root:
-                    continue
+                dirs[:] = [d for d in dirs if d not in skip_dirs]
                 for file in files:
                     filepath = os.path.join(root, file)
                     arcname = os.path.relpath(filepath, '.')

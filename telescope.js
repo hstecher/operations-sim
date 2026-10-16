@@ -1,21 +1,63 @@
 // Constants
-const STAR_COUNT = 1000;
 const SATELLITE_COUNT = 3;  // Add a few satellites
 const TELESCOPE_FOV = 0.5;  // degrees - zoomed in to focus on single objects
-const ACQUISITION_FOV = 120;  // degrees
-const SHWFS_SIZE = 500;
-const LENSLET_COUNT = 2;
-const SPOT_DEVIATION_MAX = 5;
-const SIDEREAL_RATE = (360.0 / (24 * 60 * 60)) * 500;  // degrees per second
-const SLEW_SPEED = 30;  // degrees per second
-const SPECTRA_WIDTH = 500;  // Width of spectral display
-const SPECTRA_HEIGHT = 200;  // Height of spectral display
+const FINDER_ZOOMS = [90, 40, 15];  // Sky Map field of view choices, degrees
+const DEFAULT_FINDER_ZOOM = 1;
 const WAVELENGTH_MIN = 380;  // nm
 const WAVELENGTH_MAX = 780;  // nm
+const DEG = Math.PI / 180;
+
+// The real sky drifts 0.004 deg/s. ~15x faster makes the Earth's spin easy to notice,
+// while giving kids ~4 s to press Follow before a centered target leaves the 0.5 deg view.
+const SKY_DRIFT_RATE = 0.06;  // degrees per second
+
+// Arrow keys: a tap is a tiny nudge; holding doubles the speed every NUDGE_DOUBLING_TIME
+const NUDGE_MIN_SPEED = 0.05;        // deg/s (~35 px/s in the telescope view)
+const NUDGE_MAX_SPEED = 20;          // deg/s
+const NUDGE_STEADY_MAX_SPEED = 0.3;  // deg/s cap while guiding, for fine-tuning
+const NUDGE_DOUBLING_TIME = 0.4;     // seconds
+
+// Go-to: speeds up for long trips and eases in near the target
+const SLEW_MAX_SPEED = 60;  // deg/s
+const SLEW_MIN_SPEED = 0.5; // deg/s
+const SLEW_GAIN = 4;        // 1/s
+
+// Mount wobble whenever guiding is off: wanders around the target but stays nearby
+const WOBBLE_SIZE = 0.03;  // degrees, typical offset
+const WOBBLE_TIME = 0.6;   // seconds before the wobble "forgets" its direction
+
+// Adaptive optics (AO): the air is a bumpy sheet of waves blowing across the telescope.
+// The wavefront sensor (WFS) measures the bumps; AO bends a mirror to cancel them.
+const WFS_LENSLETS = 12;        // lenslets across the telescope opening
+const TURBULENCE_WAVES = 24;    // wave components that make up the bumpy air
+const TURBULENCE_K_MIN = 2;     // wave sizes, in radians per pupil radius
+const TURBULENCE_K_MAX = 12;
+const WIND_SPEED = 0.6;         // pupil radii per second the air blows across
+// Telescope view with AO off: light bends through the bumpy air like looking through
+// rippling water. Exaggerated well beyond real seeing so the bending is easy to see.
+const WARP_PX = 22;             // typical push of each bit of the image, in px
+const WARP_GRID = 24;           // the bending is worked out on this grid, then smoothed
+const WARP_FIELD_SCALE = 1.4;   // how many ripples fit across the view
+const TWINKLE_STRENGTH = 1.0;   // brightening/dimming where the air focuses or spreads light
+const SEEING_BLUR_PX = 1.5;     // slight softening on top of the ripples
+const AO_RESIDUAL = 0.08;       // fraction of the blur left once AO has locked
+const AO_LOCK_TIME = 0.5;       // seconds for the AO loop to settle
+const WFS_SPOT_GAIN = 5;        // px of spot motion per unit of wavefront slope
+
+const EXPOSURE_SECONDS = 4;
+const EXPOSURE_RATE = 1.2;  // how fast light builds up, per second
+// Blend a frame into the picture this often. Fewer, stronger blends avoid the speckle that
+// tiny per-frame alphas leave behind on an 8-bit canvas.
+const EXPOSURE_SAMPLE_SECONDS = 0.1;
+const SPECTRUM_POINTS = 300;
 
 // Add satellite parameters
 const SATELLITE_SPEED = 0.5;  // degrees per second
 const SATELLITE_MAGNITUDE = 2;  // Fairly bright
+
+const COLLECTED_KEY = 'telescopeExplorer.collected';
+const SEEN_KEY = 'telescopeExplorer.seen';
+const HELP_SEEN_KEY = 'telescopeExplorer.helpSeen';
 
 // Planet colors (for future use)
 const PLANET_COLORS = {
@@ -53,12 +95,129 @@ const DSO_IMAGES = {
     'NGC7293': 'dso/ngc7293_helix.png'        // Helix Nebula
 };
 
+// Everything kids can pick from the list. Planets get their position from the ephemeris.
+const TARGETS = [
+    { id: 'Mercury', name: 'Mercury', kind: 'planet', image: PLANET_IMAGES.Mercury,
+      fact: 'The closest planet to the Sun. A year there lasts only 88 days!' },
+    { id: 'Venus', name: 'Venus', kind: 'planet', image: PLANET_IMAGES.Venus,
+      fact: 'The hottest planet. Thick clouds trap heat, so it is hotter than a pizza oven.' },
+    { id: 'Mars', name: 'Mars', kind: 'planet', image: PLANET_IMAGES.Mars,
+      fact: 'The Red Planet. Its color comes from rusty dust.' },
+    { id: 'Jupiter', name: 'Jupiter', kind: 'planet', image: PLANET_IMAGES.Jupiter,
+      fact: 'The biggest planet. More than 1,000 Earths could fit inside!' },
+    { id: 'Saturn', name: 'Saturn', kind: 'planet', image: PLANET_IMAGES.Saturn,
+      fact: 'Its rings are made of billions of chunks of ice and rock.' },
+    { id: 'Uranus', name: 'Uranus', kind: 'planet', image: PLANET_IMAGES.Uranus,
+      fact: 'An ice giant that spins on its side, like a rolling ball.' },
+    { id: 'Neptune', name: 'Neptune', kind: 'planet', image: PLANET_IMAGES.Neptune,
+      fact: 'The windiest planet. Its storms blow faster than a jet plane.' },
+    { id: 'M31', name: 'Andromeda Galaxy', kind: 'galaxy', ra: 10.685, dec: 41.269, mag: 3.4, image: DSO_IMAGES.M31,
+      fact: 'A giant spiral of a trillion stars. Its light left 2.5 million years ago!' },
+    { id: 'M51', name: 'Whirlpool Galaxy', kind: 'galaxy', ra: 202.47, dec: 47.195, mag: 8.4, image: DSO_IMAGES.M51,
+      fact: 'A spiral galaxy doing a slow dance with a smaller galaxy next to it.' },
+    { id: 'M42', name: 'Orion Nebula', kind: 'nebula', ra: 83.822, dec: -5.391, mag: 4.0, image: DSO_IMAGES.M42,
+      fact: 'A giant cloud where brand-new stars are being born.' },
+    { id: 'M57', name: 'Ring Nebula', kind: 'nebula', ra: 283.40, dec: 33.029, mag: 8.8, image: DSO_IMAGES.M57,
+      fact: 'A dying star puffed its outer layers into a glowing smoke ring.' },
+    { id: 'M1', name: 'Crab Nebula', kind: 'nebula', ra: 83.633, dec: 22.014, mag: 8.4, image: DSO_IMAGES.M1,
+      fact: 'Leftovers of a star that exploded. People saw the blast in the year 1054!' },
+    { id: 'M8', name: 'Lagoon Nebula', kind: 'nebula', ra: 270.93, dec: -24.38, mag: 6.0, image: DSO_IMAGES.M8,
+      fact: 'A huge glowing cloud of gas where new stars form.' },
+    { id: 'NGC7293', name: 'Helix Nebula', kind: 'nebula', ra: 337.41, dec: -20.837, mag: 7.6, image: DSO_IMAGES.NGC7293,
+      fact: 'Nicknamed the "Eye of God": the glowing shell of a dying star.' },
+    { id: 'Sirius', name: 'Sirius', kind: 'star', ra: 101.287, dec: -16.716,
+      fact: 'The brightest star in the night sky, also called the Dog Star.' },
+    { id: 'Betelgeuse', name: 'Betelgeuse', kind: 'star', ra: 88.793, dec: 7.407,
+      fact: 'A red supergiant. If it replaced our Sun, it would swallow Mars!' },
+    { id: 'Vega', name: 'Vega', kind: 'star', ra: 279.235, dec: 38.784,
+      fact: 'A bright blue-white star. In 12,000 years it will be our North Star.' },
+    { id: 'Polaris', name: 'Polaris', kind: 'star', ra: 37.955, dec: 89.264,
+      fact: 'The North Star. It hardly moves in our sky because it sits above Earth\'s North Pole.' },
+    { id: 'Antares', name: 'Antares', kind: 'star', ra: 247.352, dec: -26.432,
+      fact: 'A giant red star. Its name means "rival of Mars" because both look red.' },
+    { id: 'UFO', name: 'UFO?!', kind: 'mystery', ra: 150.0, dec: 25.0, image: UFO_IMAGE,
+      fact: 'Nobody knows what this is... but YOU found it!',
+      clue: 'Astronomers saw something strange at RA 10:00, Dec +25. Type those numbers into "Go to coordinates" and press Go!' }
+];
+
+const KIND_LABELS = { planet: 'Planet', galaxy: 'Galaxy', nebula: 'Nebula', star: 'Star', mystery: 'Mystery' };
+
+// What each kind of light looks like, in kid words (keyed by spectra.type)
+const SPECTRUM_CAPTIONS = {
+    'O': 'a super-hot blue star',
+    'B': 'a very hot blue-white star',
+    'A': 'a hot white star',
+    'F': 'a warm yellow-white star',
+    'G': 'a yellow star like our Sun',
+    'K': 'a cooler orange star',
+    'M': 'a cool red star',
+    'Reflected': 'sunlight bouncing off a planet',
+    'Galaxy': 'billions of stars mixed together',
+    'Nebula': 'glowing gas in space',
+    'Unknown': 'something nobody has seen before! 👽'
+};
+
+const RAINBOW_STOPS = [
+    [380, '#7f00ff'], [440, '#2a2aff'], [490, '#00d0ff'], [530, '#00ff40'],
+    [580, '#ffff00'], [620, '#ff8000'], [680, '#ff0000'], [780, '#700000']
+];
+
 // Helper function to format RA from degrees to HH:MM
 function formatRADegrees(raDegrees) {
     const hours = raDegrees / 15;  // Convert to hours
     const h = Math.floor(hours);
     const m = Math.floor((hours - h) * 60);
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function gaussianRandom() {
+    return Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+}
+
+// Gnomonic (tangent-plane) projection, like a real camera. Returns offsets from the
+// center in degrees (x grows with RA, y grows with Dec), or null if behind the view.
+function projectSky(ra, dec, centerRa, centerDec) {
+    const dRa = (ra - centerRa) * DEG;
+    const d = dec * DEG;
+    const d0 = centerDec * DEG;
+    const cosC = Math.sin(d0) * Math.sin(d) + Math.cos(d0) * Math.cos(d) * Math.cos(dRa);
+    if (cosC <= 0.05) return null;
+    return {
+        x: Math.cos(d) * Math.sin(dRa) / cosC / DEG,
+        y: (Math.cos(d0) * Math.sin(d) - Math.sin(d0) * Math.cos(d) * Math.cos(dRa)) / cosC / DEG
+    };
+}
+
+function unprojectSky(x, y, centerRa, centerDec) {
+    x *= DEG;
+    y *= DEG;
+    const d0 = centerDec * DEG;
+    const rho = Math.hypot(x, y);
+    if (rho === 0) return { ra: centerRa, dec: centerDec };
+    const c = Math.atan(rho);
+    const dec = Math.asin(Math.cos(c) * Math.sin(d0) + y * Math.sin(c) * Math.cos(d0) / rho) / DEG;
+    const ra = centerRa + Math.atan2(x * Math.sin(c), rho * Math.cos(d0) * Math.cos(c) - y * Math.sin(d0) * Math.sin(c)) / DEG;
+    return { ra: (ra + 360) % 360, dec };
+}
+
+function loadSet(key) {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(key)) || []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function saveSet(key, set) {
+    try {
+        localStorage.setItem(key, JSON.stringify([...set]));
+    } catch (e) {
+        // Storage can be unavailable (private windows); progress just won't persist
+    }
 }
 
 class CelestialObject {
@@ -68,22 +227,13 @@ class CelestialObject {
         this.magnitude = magnitude;
     }
 
-    getScreenPosition(centerRa, centerDec, fov, canvas, isLenslet = false) {
-        let raDiff = (this.ra - centerRa);
-        if (raDiff > 180) raDiff -= 360;
-        else if (raDiff < -180) raDiff += 360;
-        
-        const decDiff = this.dec - centerDec;
-        
-        if (isLenslet) {
-            const x = ((raDiff + fov/2) / fov) * canvas.width;
-            const y = ((-decDiff + fov/2) / fov) * canvas.height;
-            return { x, y };
-        } else {
-            const x = canvas.width/2 + (raDiff / fov) * canvas.width;
-            const y = canvas.height/2 - (decDiff / fov) * canvas.height;
-            return { x, y };
-        }
+    getScreenPosition(centerRa, centerDec, fov, canvas) {
+        const offset = projectSky(this.ra, this.dec, centerRa, centerDec);
+        if (!offset) return null;
+        return {
+            x: canvas.width / 2 + (offset.x / fov) * canvas.width,
+            y: canvas.height / 2 - (offset.y / fov) * canvas.height
+        };
     }
 
     draw(ctx, pos, scale = 1.0) {}
@@ -558,8 +708,8 @@ class Planet extends CelestialObject {
             // Note: astronomy-engine expects capitalized planet names
             const body = this.name;  // Keep the capital name!
             
-            // Get heliocentric position first, then convert to equatorial
-            const vector = Astronomy.HelioVector(body, date);
+            // Geocentric position (as seen from Earth), converted to equatorial
+            const vector = Astronomy.GeoVector(body, date, true);
             const equator = Astronomy.EquatorFromVector(vector);
             
             // Convert from hours to degrees for RA
@@ -740,6 +890,50 @@ class Planet extends CelestialObject {
     }
 }
 
+
+// Frozen-flow turbulence: a sum of waves with a Kolmogorov-like size mix, blown by the wind
+// and slowly "boiling". Units are normalized so the slope has an RMS of about 1.
+class Atmosphere {
+    constructor() {
+        const windAngle = Math.random() * Math.PI * 2;
+        this.wind = { x: Math.cos(windAngle) * WIND_SPEED, y: Math.sin(windAngle) * WIND_SPEED };
+        this.time = 0;
+        this.waves = [];
+        for (let i = 0; i < TURBULENCE_WAVES; i++) {
+            const k = TURBULENCE_K_MIN * Math.pow(TURBULENCE_K_MAX / TURBULENCE_K_MIN, Math.random());
+            const angle = Math.random() * Math.PI * 2;
+            this.waves.push({
+                kx: k * Math.cos(angle),
+                ky: k * Math.sin(angle),
+                amp: Math.pow(k, -11 / 6),
+                phase: Math.random() * Math.PI * 2,
+                boil: (Math.random() - 0.5) * 1.5
+            });
+        }
+        const slopeRms = Math.sqrt(this.waves.reduce((sum, w) => sum + Math.pow(w.amp * Math.hypot(w.kx, w.ky), 2) / 2, 0));
+        this.waves.forEach(w => { w.amp /= slopeRms; });
+        this.heightRms = Math.sqrt(this.waves.reduce((sum, w) => sum + w.amp * w.amp / 2, 0));
+    }
+
+    update(elapsedSeconds) {
+        this.time += elapsedSeconds;
+    }
+
+    // Wavefront height and slope at pupil point (x, y), each in [-1, 1]
+    sample(x, y) {
+        const t = this.time;
+        let h = 0, gx = 0, gy = 0;
+        this.waves.forEach(w => {
+            const arg = w.kx * (x - this.wind.x * t) + w.ky * (y - this.wind.y * t) + w.phase + w.boil * t;
+            h += w.amp * Math.sin(arg);
+            const slope = w.amp * Math.cos(arg);
+            gx += slope * w.kx;
+            gy += slope * w.ky;
+        });
+        return { h, gx, gy };
+    }
+}
+
 class TelescopeSimulator {
     constructor() {
         // Get canvas elements
@@ -759,81 +953,112 @@ class TelescopeSimulator {
         this.exposureBuffer.width = this.exposureCanvas.width;
         this.exposureBuffer.height = this.exposureCanvas.height;
         this.exposureBufferCtx = this.exposureBuffer.getContext('2d', { willReadFrequently: true });
-        
-        // Clear the exposure buffer
-        this.exposureBufferCtx.fillStyle = '#000000';
-        this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+        this.clearExposureBuffer();
+
+        // What the telescope sees this frame, without overlays; the camera averages these
+        this.skyFrame = document.createElement('canvas');
+        this.skyFrame.width = this.telescopeCanvas.width;
+        this.skyFrame.height = this.telescopeCanvas.height;
+        this.skyFrameCtx = this.skyFrame.getContext('2d', { willReadFrequently: true });
+        // The same view after the air has blurred it (and AO has fixed what it can)
+        this.seeingFrame = document.createElement('canvas');
+        this.seeingFrame.width = this.telescopeCanvas.width;
+        this.seeingFrame.height = this.telescopeCanvas.height;
+        this.seeingCtx = this.seeingFrame.getContext('2d');
+        // Scratch canvas holding the rippled pixels before softening
+        this.warpFrame = document.createElement('canvas');
+        this.warpFrame.width = this.telescopeCanvas.width;
+        this.warpFrame.height = this.telescopeCanvas.height;
+        this.warpCtx = this.warpFrame.getContext('2d');
+        this.warpImage = this.warpCtx.createImageData(this.warpFrame.width, this.warpFrame.height);
+        const nodes = (WARP_GRID + 1) * (WARP_GRID + 1);
+        this.warpField = { dx: new Float32Array(nodes), dy: new Float32Array(nodes), gain: new Float32Array(nodes) };
+
+        this.atmosphere = new Atmosphere();
+        this.ao = false;
+        this.aoLevel = 0;  // 0 = AO off, 1 = fully locked
+        this.aoResidual = 1;
+        this.subapertures = [];
+        for (let j = 0; j < WFS_LENSLETS; j++) {
+            for (let i = 0; i < WFS_LENSLETS; i++) {
+                const x = ((i + 0.5) / WFS_LENSLETS) * 2 - 1;
+                const y = 1 - ((j + 0.5) / WFS_LENSLETS) * 2;
+                const r = Math.hypot(x, y);
+                // Round mirror with the secondary mirror blocking the middle
+                if (r <= 1.0 && r >= 0.22) this.subapertures.push({ i, j, x, y, h: 0, gx: 0, gy: 0 });
+            }
+        }
+
 
         // Initialize simulation date
         this.simulationDate = new Date();
 
         // Initialize celestial objects from configuration
         this.objects = [];
-        
-        // Add stars from configuration
         skyConfig.stars.forEach(starConfig => {
             this.objects.push(new Star(starConfig));
         });
 
-        // Add all planets
-        const planetNames = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
-        planetNames.forEach(name => {
-            const planet = new Planet(name);
+        this.planets = {};
+        TARGETS.filter(t => t.kind === 'planet').forEach(t => {
+            const planet = new Planet(t.id);
             planet.updatePosition(this.simulationDate);
             this.objects.push(planet);
-            console.log(`${name}: RA=${formatRADegrees(planet.ra)}, Dec=${planet.dec.toFixed(2)}°, Mag=${planet.magnitude.toFixed(1)}`);
-        });
-        
-        // Add the secret UFO! Positioned at RA=10h, Dec=+25° (in Leo constellation)
-        const ufo = new UFO(150.0, 25.0);  // RA in degrees, Dec in degrees
-        this.objects.push(ufo);
-        console.log(`UFO: RA=${formatRADegrees(ufo.ra)}, Dec=${ufo.dec.toFixed(2)}°, Mag=${ufo.magnitude.toFixed(1)} 🛸`);
-        
-        // Add famous deep sky objects
-        const deepSkyObjects = [
-            { name: 'M31', ra: 10.685, dec: 41.269, mag: 3.4, type: 'galaxy', desc: 'Andromeda Galaxy' },
-            { name: 'M42', ra: 83.822, dec: -5.391, mag: 4.0, type: 'nebula', desc: 'Orion Nebula' },
-            { name: 'M51', ra: 202.47, dec: 47.195, mag: 8.4, type: 'galaxy', desc: 'Whirlpool Galaxy' },
-            { name: 'M57', ra: 283.40, dec: 33.029, mag: 8.8, type: 'nebula', desc: 'Ring Nebula' },
-            { name: 'M1', ra: 83.633, dec: 22.014, mag: 8.4, type: 'nebula', desc: 'Crab Nebula' },
-            { name: 'M8', ra: 270.93, dec: -24.38, mag: 6.0, type: 'nebula', desc: 'Lagoon Nebula' },
-            { name: 'NGC7293', ra: 337.41, dec: -20.837, mag: 7.6, type: 'nebula', desc: 'Helix Nebula' }
-        ];
-        
-        deepSkyObjects.forEach(dso => {
-            const obj = new DeepSkyObject(dso.name, dso.ra, dso.dec, dso.mag, dso.type);
-            this.objects.push(obj);
-            console.log(`${dso.name} (${dso.desc}): RA=${formatRADegrees(dso.ra)}, Dec=${dso.dec.toFixed(2)}°, Mag=${dso.mag.toFixed(1)}`);
+            this.planets[t.id] = planet;
         });
 
-        // Add satellites
+        // The secret UFO, in Leo
+        const ufoTarget = TARGETS.find(t => t.kind === 'mystery');
+        this.objects.push(new UFO(ufoTarget.ra, ufoTarget.dec));
+
+        TARGETS.filter(t => t.kind === 'galaxy' || t.kind === 'nebula').forEach(t => {
+            this.objects.push(new DeepSkyObject(t.id, t.ra, t.dec, t.mag, t.kind));
+        });
+
         for (let i = 0; i < SATELLITE_COUNT; i++) {
             this.objects.push(new Satellite());
         }
 
-        // Initialize telescope position
+        // Telescope pointing. view = pointing plus mount wobble; it's what the camera sees.
         this.telescopeRa = 180;
         this.telescopeDec = 0;
+        this.viewRa = this.telescopeRa;
+        this.viewDec = this.telescopeDec;
         this.targetRa = null;
         this.targetDec = null;
         this.slewing = false;
         this.tracking = false;
-        this.guiding = false;  // Add guiding state
+        this.guiding = false;
+        this.wobble = { x: 0, y: 0 };
 
-        // Add drift parameters
-        this.driftRa = 0;
-        this.driftDec = 0;
-        this.driftPhaseRa = Math.random() * Math.PI * 2;
-        this.driftPhaseDec = Math.random() * Math.PI * 2;
-        
-        // Add key state tracking
-        this.pressedKeys = new Set();
-        
-        // Add view mode state
+        // Held movement directions from keyboard or on-screen pad
+        this.held = new Set();
+        this.nudgeTime = 0;
+
         this.viewMode = 'image'; // 'image' or 'spectra'
-        
-        // Setup input handlers
+        this.finderZoom = DEFAULT_FINDER_ZOOM;
+
+        this.selectedTarget = null;
+        this.currentTarget = null;
+        this.lostTarget = null;
+        this.nearby = [];
+        this.inView = [];
+
+        this.exposure = { state: 'idle', elapsed: 0, sinceSample: 0, target: null, saved: false, stale: false };
+        this.spectrumData = new Array(SPECTRUM_POINTS).fill(0);
+        this.spectrumCaption = '';
+
+        this.collected = loadSet(COLLECTED_KEY);
+        this.seen = loadSet(SEEN_KEY);
+        this.uiCache = {};
+
         this.setupInputHandlers();
+        this.buildTargetList();
+
+        let helpSeen = false;
+        try { helpSeen = localStorage.getItem(HELP_SEEN_KEY) === '1'; } catch (e) {}
+        // Skip the welcome screen when driven by automation (telescope_control.py)
+        if (!helpSeen && !navigator.webdriver) this.showHelp();
 
         // Start the animation loop
         this.lastUpdate = performance.now();
@@ -841,231 +1066,427 @@ class TelescopeSimulator {
         this.animate();
     }
 
+    // ---------- Setup ----------
+
     setupInputHandlers() {
-        const raInput = document.getElementById('ra-input');
-        const decInput = document.getElementById('dec-input');
-        const slewButton = document.getElementById('slew-button');
-        const trackingButton = document.getElementById('tracking-button');
-        const exposureButton = document.getElementById('exposure-button');
-        const viewModeButton = document.getElementById('view-mode-button');
-        const guidingButton = document.getElementById('guiding-button');
-        const saveExposureButton = document.getElementById('save-exposure-button');
-        const telescopeViewButton = document.getElementById('telescope-view-button');
-        const galleryViewButton = document.getElementById('gallery-view-button');
-        const telescopeView = document.getElementById('telescope-view');
-        const galleryView = document.getElementById('gallery-view');
-        const exposureGallery = document.getElementById('exposure-gallery');
-
-        // Function to load gallery
-        const loadGallery = () => {
-            fetch('/list_exposures')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        exposureGallery.innerHTML = data.files.map(file => `
-                            <div class="gallery-item">
-                                <img src="${file.url}" alt="${file.filename}">
-                                <div class="info">
-                                    ${new Date(file.created).toLocaleString()}
-                                </div>
-                            </div>
-                        `).join('');
-                    }
-                })
-                .catch(error => console.error('Error loading gallery:', error));
+        this.ui = {
+            raInput: document.getElementById('ra-input'),
+            decInput: document.getElementById('dec-input'),
+            coordError: document.getElementById('coord-error'),
+            slewButton: document.getElementById('slew-button'),
+            trackingButton: document.getElementById('tracking-button'),
+            guidingButton: document.getElementById('guiding-button'),
+            aoButton: document.getElementById('ao-button'),
+            exposureButton: document.getElementById('exposure-button'),
+            viewModeButton: document.getElementById('view-mode-button'),
+            saveButton: document.getElementById('save-exposure-button'),
+            targets: document.getElementById('targets'),
+            targetList: document.getElementById('target-list'),
+            collectionCount: document.getElementById('collection-count'),
+            hint: document.getElementById('hint'),
+            steps: document.querySelectorAll('#steps li'),
+            caption: document.getElementById('telescope-caption'),
+            coords: document.getElementById('current-coords'),
+            toast: document.getElementById('toast'),
+            helpOverlay: document.getElementById('help-overlay'),
+            gallery: document.getElementById('exposure-gallery'),
+            telescopeView: document.getElementById('telescope-view'),
+            galleryView: document.getElementById('gallery-view'),
+            telescopeViewButton: document.getElementById('telescope-view-button'),
+            galleryViewButton: document.getElementById('gallery-view-button')
         };
+        const ui = this.ui;
 
-        // View toggle handlers
-        telescopeViewButton.addEventListener('click', () => {
-            telescopeView.style.display = 'block';
-            galleryView.style.display = 'none';
-            telescopeViewButton.classList.add('active');
-            galleryViewButton.classList.remove('active');
+        ui.telescopeViewButton.addEventListener('click', () => this.showView('telescope'));
+        ui.galleryViewButton.addEventListener('click', () => this.showView('gallery'));
+        document.getElementById('help-button').addEventListener('click', () => this.showHelp());
+        document.getElementById('help-close').addEventListener('click', () => this.hideHelp());
+        ui.helpOverlay.addEventListener('click', (e) => {
+            if (e.target === ui.helpOverlay) this.hideHelp();
         });
 
-        galleryViewButton.addEventListener('click', () => {
-            telescopeView.style.display = 'none';
-            galleryView.style.display = 'block';
-            telescopeViewButton.classList.remove('active');
-            galleryViewButton.classList.add('active');
-            loadGallery();  // Load gallery when switching to gallery view
+        ui.trackingButton.addEventListener('click', () => this.toggleTracking());
+        ui.guidingButton.addEventListener('click', () => this.toggleGuiding());
+        ui.aoButton.addEventListener('click', () => this.toggleAO());
+        ui.exposureButton.addEventListener('click', () => this.startExposure());
+        ui.saveButton.addEventListener('click', () => this.saveExposure());
+        ui.viewModeButton.addEventListener('click', () => {
+            this.viewMode = this.viewMode === 'image' ? 'spectra' : 'image';
+            this.resetExposure();
         });
 
-        // Update tracking button text
-        const updateTrackingButton = () => {
-            trackingButton.textContent = `Follow: ${this.tracking ? 'ON' : 'OFF'}`;
-        };
+        ui.slewButton.addEventListener('click', () => this.goToCoordinates());
+        [ui.raInput, ui.decInput].forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') this.goToCoordinates();
+            });
+        });
 
-        // Update guiding button text
-        const updateGuidingButton = () => {
-            guidingButton.textContent = `Guide: ${this.guiding ? 'ON' : 'OFF'}`;
-        };
+        document.getElementById('reset-collection').addEventListener('click', () => {
+            if (confirm('Start the collection over? All checkmarks will be cleared.')) {
+                this.collected.clear();
+                this.seen.clear();
+                saveSet(COLLECTED_KEY, this.collected);
+                saveSet(SEEN_KEY, this.seen);
+                this.refreshTargetCards();
+            }
+        });
 
-        // Update view mode button text
-        const updateViewModeButton = () => {
-            viewModeButton.textContent = `View: ${this.viewMode.charAt(0).toUpperCase() + this.viewMode.slice(1)}`;
-        };
-
-        // Initial button states
-        updateTrackingButton();
-        updateGuidingButton();
-        updateViewModeButton();
-
-        // Add save exposure handler
-        saveExposureButton.addEventListener('click', () => {
-            // Create a temporary canvas to add coordinates
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = this.exposureCanvas.width;
-            tempCanvas.height = this.exposureCanvas.height + 30; // Extra height for coordinates
-            const tempCtx = tempCanvas.getContext('2d');
-
-            // Fill background
-            tempCtx.fillStyle = '#000000';
-            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-            // Copy the exposure
-            tempCtx.drawImage(this.exposureCanvas, 0, 0);
-
-            // Add coordinates text
-            tempCtx.font = '14px monospace';
-            tempCtx.fillStyle = '#FFFFFF';
-            tempCtx.textAlign = 'center';
-            tempCtx.fillText(
-                `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
-                tempCanvas.width / 2,
-                tempCanvas.height - 10
+        // Sky Map: click to go there, snapping to a nearby named target
+        this.acquisitionCanvas.addEventListener('click', (e) => {
+            const canvas = this.acquisitionCanvas;
+            const rect = canvas.getBoundingClientRect();
+            const fov = FINDER_ZOOMS[this.finderZoom];
+            const x = (e.clientX - rect.left) * canvas.width / rect.width;
+            const y = (e.clientY - rect.top) * canvas.height / rect.height;
+            const sky = unprojectSky(
+                (x / canvas.width - 0.5) * fov,
+                (0.5 - y / canvas.height) * fov,
+                this.telescopeRa, this.telescopeDec
             );
+            const snapRadius = fov * 0.04;
+            let best = null;
+            let bestDist = Infinity;
+            this.targets.forEach(t => {
+                if (t.kind === 'mystery') return;
+                const pos = this.targetPosition(t);
+                const offset = projectSky(pos.ra, pos.dec, sky.ra, sky.dec);
+                const dist = offset ? Math.hypot(offset.x, offset.y) : Infinity;
+                if (dist < snapRadius && dist < bestDist) {
+                    best = t;
+                    bestDist = dist;
+                }
+            });
+            if (best) {
+                this.goToTarget(best);
+            } else {
+                this.selectedTarget = null;
+                this.refreshTargetCards();
+                this.startSlew(sky.ra, sky.dec);
+            }
+        });
 
-            // Generate a random filename with timestamp
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const randomStr = Math.random().toString(36).substring(2, 8);
-            const filename = `exposure_${timestamp}_${randomStr}.png`;
+        document.getElementById('finder-zoom-in').addEventListener('click', () => {
+            this.finderZoom = Math.min(FINDER_ZOOMS.length - 1, this.finderZoom + 1);
+        });
+        document.getElementById('finder-zoom-out').addEventListener('click', () => {
+            this.finderZoom = Math.max(0, this.finderZoom - 1);
+        });
 
-            // Get the temporary canvas data
-            tempCanvas.toBlob((blob) => {
-                // Create form data
-                const formData = new FormData();
-                formData.append('file', blob, filename);
+        // On-screen arrow pad (works with mouse and touch)
+        document.querySelectorAll('.dpad button').forEach(button => {
+            const dir = button.dataset.dir;
+            button.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                button.setPointerCapture(e.pointerId);
+                this.held.add(dir);
+            });
+            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => {
+                button.addEventListener(type, () => this.held.delete(dir));
+            });
+        });
 
-                // Send to server
-                fetch('/save_exposure', {
-                    method: 'POST',
-                    body: formData
-                })
+        const keyDirections = {
+            ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+            a: 'left', d: 'right', w: 'up', s: 'down'
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;  // typing coordinates
+            if (!ui.helpOverlay.hidden) {
+                if (e.key === 'Escape' || e.key === 'Enter') this.hideHelp();
+                return;
+            }
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const dir = keyDirections[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+            if (dir) {
+                e.preventDefault();
+                this.held.add(dir);
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                if (!e.repeat) this.toggleTracking();
+            } else if (e.key === 'g' || e.key === 'G') {
+                if (!e.repeat) this.toggleGuiding();
+            } else if (e.key === 'o' || e.key === 'O') {
+                if (!e.repeat) this.toggleAO();
+            } else if (e.key === 'p' || e.key === 'P') {
+                if (!e.repeat) this.startExposure();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const dir = keyDirections[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+            if (dir) this.held.delete(dir);
+        });
+
+        window.addEventListener('blur', () => this.held.clear());
+    }
+
+    buildTargetList() {
+        this.targets = TARGETS;
+        this.targetButtons = new Map();
+        this.targets.forEach(t => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'target-card';
+            button.addEventListener('click', () => this.goToTarget(t));
+            this.ui.targetList.appendChild(button);
+            this.targetButtons.set(t.id, button);
+        });
+        this.refreshTargetCards();
+    }
+
+    refreshTargetCards() {
+        this.targets.forEach(t => {
+            const button = this.targetButtons.get(t.id);
+            const hidden = this.isHidden(t);
+            const collected = this.collected.has(t.id);
+            let thumb;
+            if (hidden) thumb = '<span class="thumb thumb-emoji">❓</span>';
+            else if (t.image) thumb = `<img class="thumb" src="${t.image}" alt="">`;
+            else thumb = '<span class="thumb thumb-emoji">⭐</span>';
+            button.innerHTML = `${thumb}
+                <span class="card-text">
+                    <span class="card-name">${hidden ? 'Mystery object' : t.name}</span>
+                    <span class="card-kind">${hidden ? 'Click for a clue' : KIND_LABELS[t.kind]}</span>
+                </span>
+                <span class="card-check">${collected ? '✓' : ''}</span>`;
+            button.title = hidden ? t.clue : t.fact;
+            button.classList.toggle('collected', collected);
+            button.classList.toggle('selected', this.selectedTarget === t);
+        });
+        this.ui.collectionCount.textContent = `${this.collected.size} / ${this.targets.length} collected`;
+    }
+
+    isHidden(target) {
+        return target.kind === 'mystery' && !this.seen.has(target.id);
+    }
+
+    targetPosition(target) {
+        if (target.kind === 'planet') {
+            const planet = this.planets[target.id];
+            return { ra: planet.ra, dec: planet.dec };
+        }
+        return { ra: target.ra, dec: target.dec };
+    }
+
+    // ---------- Actions ----------
+
+    goToTarget(target) {
+        if (this.isHidden(target)) {
+            this.showToast('🕵️ Clue: ' + target.clue, 7000);
+            this.ui.raInput.focus();
+            return;
+        }
+        this.selectedTarget = target;
+        this.refreshTargetCards();
+        const pos = this.targetPosition(target);
+        this.startSlew(pos.ra, pos.dec);
+    }
+
+    goToCoordinates() {
+        const ra = this.parseRA(this.ui.raInput.value);
+        const dec = this.parseDec(this.ui.decInput.value);
+        if (isNaN(ra) || isNaN(dec)) {
+            this.ui.coordError.textContent = 'Try RA like 10:00 (0 to 23:59) and Dec like +25 (-90 to +90).';
+            return;
+        }
+        this.ui.coordError.textContent = '';
+        this.selectedTarget = null;
+        this.refreshTargetCards();
+        this.startSlew(ra, dec);
+    }
+
+    startSlew(ra, dec) {
+        this.targetRa = (ra + 360) % 360;
+        this.targetDec = clamp(dec, -90, 90);
+        this.slewing = true;
+        this.guiding = false;  // Turn off guiding and AO when slewing starts
+        this.ao = false;
+        this.lostTarget = null;
+        if (this.exposure.state !== 'running') this.exposure.stale = true;
+    }
+
+    toggleTracking() {
+        this.tracking = !this.tracking;
+        if (!this.tracking) this.guiding = false;  // Guiding needs tracking
+    }
+
+    toggleGuiding() {
+        if (!this.tracking) {
+            this.showToast('🌍 Turn on Follow first!');
+            this.ui.trackingButton.classList.add('attention');
+            return;
+        }
+        this.guiding = !this.guiding;
+    }
+
+    toggleAO() {
+        this.ao = !this.ao;
+    }
+
+    clearExposureBuffer() {
+        this.exposureBufferCtx.fillStyle = '#000000';
+        this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
+    }
+
+    resetExposure() {
+        this.clearExposureBuffer();
+        this.spectrumData.fill(0);
+        this.exposure = { state: 'idle', elapsed: 0, sinceSample: 0, target: null, saved: false, stale: false };
+    }
+
+    startExposure() {
+        this.resetExposure();
+        this.exposure.state = 'running';
+        this.exposure.target = this.currentTarget;
+    }
+
+    finishExposure() {
+        const ex = this.exposure;
+        ex.state = 'done';
+        ex.target = this.currentTarget || ex.target;
+        const target = ex.target;
+        if (target && !this.collected.has(target.id)) {
+            this.collected.add(target.id);
+            saveSet(COLLECTED_KEY, this.collected);
+            this.refreshTargetCards();
+            this.showToast(`📸 You photographed ${target.name}! ⭐ ${this.collected.size} of ${this.targets.length} collected`, 4500);
+        }
+    }
+
+    saveExposure() {
+        const ex = this.exposure;
+        if (ex.state === 'idle') return;
+        const button = this.ui.saveButton;
+        const name = ex.target ? ex.target.name : 'Sky picture';
+
+        // Copy the picture and add a label strip at the bottom
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.exposureCanvas.width;
+        tempCanvas.height = this.exposureCanvas.height + 30;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.fillStyle = '#000000';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(this.viewMode === 'image' ? this.exposureBuffer : this.exposureCanvas, 0, 0);
+        tempCtx.font = '13px monospace';
+        tempCtx.fillStyle = '#FFFFFF';
+        tempCtx.textAlign = 'center';
+        tempCtx.fillText(
+            `${name} | RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
+            tempCanvas.width / 2,
+            tempCanvas.height - 10
+        );
+
+        const slug = ex.target ? ex.target.id.toLowerCase() : 'exposure';
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        const filename = `${slug}_${timestamp}_${randomStr}.png`;
+
+        const flash = (text) => {
+            button.textContent = text;
+            setTimeout(() => { button.textContent = '💾 Save to Gallery'; }, 2000);
+        };
+
+        tempCanvas.toBlob((blob) => {
+            const formData = new FormData();
+            formData.append('file', blob, filename);
+            fetch('/save_exposure', { method: 'POST', body: formData })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        saveExposureButton.textContent = 'Saved!';
-                        setTimeout(() => {
-                            saveExposureButton.textContent = 'Save Exposure';
-                        }, 2000);
-                        // Refresh gallery if it's visible
-                        if (galleryView.style.display === 'block') {
-                            loadGallery();
-                        }
+                        ex.saved = true;
+                        flash('✓ Saved!');
+                        this.showToast('💾 Saved! See it in the Gallery.');
                     } else {
-                        saveExposureButton.textContent = 'Error!';
-                        setTimeout(() => {
-                            saveExposureButton.textContent = 'Save Exposure';
-                        }, 2000);
+                        flash('Could not save');
                     }
                 })
                 .catch(error => {
                     console.error('Error saving exposure:', error);
-                    saveExposureButton.textContent = 'Error!';
-                    setTimeout(() => {
-                        saveExposureButton.textContent = 'Save Exposure';
-                    }, 2000);
+                    flash('Could not save');
                 });
-            }, 'image/png');
-        });
-
-        // Add guiding button handler
-        guidingButton.addEventListener('click', () => {
-            if (this.tracking) {  // Only allow guiding when tracking is on
-                this.guiding = !this.guiding;
-                updateGuidingButton();
-            }
-        });
-
-        // Modify tracking button to handle guiding state
-        trackingButton.addEventListener('click', () => {
-            this.tracking = !this.tracking;
-            if (!this.tracking) {
-                this.guiding = false;  // Turn off guiding when tracking is off
-                updateGuidingButton();
-            }
-            updateTrackingButton();
-        });
-
-        // Modify exposure button handler to reset spectrum data
-        exposureButton.addEventListener('click', () => {
-            // Clear the exposure buffer
-            this.exposureBufferCtx.fillStyle = '#000000';
-            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
-            this.spectralAxesDrawn = false;
-            this.spectrumData = new Array(SPECTRA_WIDTH - 100).fill(0);  // Reset spectrum data
-            
-            // Update button text
-            exposureButton.textContent = 'Clear Exposure';
-        });
-
-        slewButton.addEventListener('click', () => {
-            const raValue = this.parseRA(raInput.value);
-            const decValue = parseFloat(decInput.value);
-
-            if (!isNaN(raValue) && !isNaN(decValue)) {
-                this.targetRa = raValue;
-                this.targetDec = decValue;
-                this.slewing = true;
-                this.guiding = false;  // Turn off guiding when slewing starts
-                updateGuidingButton();
-            }
-        });
-
-        // Track keydown
-        document.addEventListener('keydown', (e) => {
-            // Prevent default scrolling for arrow keys
-            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-                e.preventDefault();
-                this.pressedKeys.add(e.key);
-                // Allow manual adjustments while tracking/guiding is active
-                // This enables fine-tuning without disabling automatic tracking
-            } else if (e.key === ' ') {
-                e.preventDefault();
-                this.tracking = !this.tracking;
-                this.guiding = false;  // Turn off guiding when tracking state changes
-                updateTrackingButton();
-                updateGuidingButton();
-            }
-        });
-
-        // Track keyup
-        document.addEventListener('keyup', (e) => {
-            this.pressedKeys.delete(e.key);
-        });
-
-        // View mode button handler
-        viewModeButton.addEventListener('click', () => {
-            this.viewMode = this.viewMode === 'image' ? 'spectra' : 'image';
-            updateViewModeButton();
-            
-            // Clear the exposure buffer when switching modes
-            this.exposureBufferCtx.fillStyle = '#000000';
-            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
-        });
+        }, 'image/png');
     }
 
+    showView(name) {
+        const isGallery = name === 'gallery';
+        this.ui.telescopeView.style.display = isGallery ? 'none' : 'block';
+        this.ui.galleryView.style.display = isGallery ? 'block' : 'none';
+        this.ui.telescopeViewButton.classList.toggle('active', !isGallery);
+        this.ui.galleryViewButton.classList.toggle('active', isGallery);
+        if (isGallery) this.loadGallery();
+    }
+
+    loadGallery() {
+        const gallery = this.ui.gallery;
+        fetch('/list_exposures')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) return;
+                gallery.innerHTML = '';
+                if (data.files.length === 0) {
+                    gallery.innerHTML = '<p class="gallery-empty">No pictures yet. Go take some! 📸</p>';
+                    return;
+                }
+                data.files.forEach(file => {
+                    const slug = file.filename.split('_')[0];
+                    const target = TARGETS.find(t => t.id.toLowerCase() === slug);
+                    const item = document.createElement('div');
+                    item.className = 'gallery-item';
+                    const img = document.createElement('img');
+                    img.src = file.url;
+                    img.alt = target ? target.name : 'Sky picture';
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'name';
+                    nameEl.textContent = target ? target.name : 'Sky picture';
+                    const info = document.createElement('div');
+                    info.className = 'info';
+                    info.textContent = new Date(file.created).toLocaleString();
+                    item.append(img, nameEl, info);
+                    gallery.appendChild(item);
+                });
+            })
+            .catch(error => console.error('Error loading gallery:', error));
+    }
+
+    showHelp() {
+        this.ui.helpOverlay.hidden = false;
+        document.getElementById('help-close').focus();
+    }
+
+    hideHelp() {
+        this.ui.helpOverlay.hidden = true;
+        try { localStorage.setItem(HELP_SEEN_KEY, '1'); } catch (e) {}
+    }
+
+    showToast(message, duration = 3000) {
+        const toast = this.ui.toast;
+        toast.textContent = message;
+        toast.classList.add('show');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    // ---------- Coordinates ----------
+
+    // Accepts "10:00", "10 00", "10h00m" or decimal hours like "10.5"
     parseRA(raString) {
-        const parts = raString.split(':');
-        if (parts.length === 2) {
-            const hours = parseFloat(parts[0]);
-            const minutes = parseFloat(parts[1]);
-            if (!isNaN(hours) && !isNaN(minutes)) {
-                return (hours + minutes/60) * 15;  // Convert to degrees
-            }
-        }
-        return NaN;
+        const m = raString.trim().match(/^(\d{1,2}(?:\.\d+)?)(?:\s*[:h\s]\s*(\d{1,2}(?:\.\d+)?)\s*m?)?$/i);
+        if (!m) return NaN;
+        const hours = parseFloat(m[1]);
+        const minutes = m[2] ? parseFloat(m[2]) : 0;
+        if (hours >= 24 || minutes >= 60) return NaN;
+        return (hours + minutes / 60) * 15;  // Convert to degrees
+    }
+
+    // Accepts "+25", "-13.39" or degrees and minutes like "+25:30" / "25°30'"
+    parseDec(decString) {
+        const m = decString.trim().match(/^([+-]?)\s*(\d{1,2}(?:\.\d+)?)(?:\s*[:°\s]\s*(\d{1,2}(?:\.\d+)?)\s*'?)?°?$/);
+        if (!m) return NaN;
+        const value = parseFloat(m[2]) + (m[3] ? parseFloat(m[3]) / 60 : 0);
+        if (value > 90 || (m[3] && parseFloat(m[3]) >= 60)) return NaN;
+        return m[1] === '-' ? -value : value;
     }
 
     formatRA(ra) {
@@ -1083,484 +1504,649 @@ class TelescopeSimulator {
         return `${sign}${d.toString().padStart(2, '0')}°${m.toString().padStart(2, '0')}'`;
     }
 
-    updateCoordinates() {
-        const coordsDiv = document.getElementById('current-coords');
-        coordsDiv.textContent = `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)} | ${this.tracking ? 'FOLLOWING' : 'SIDEREAL'}`;
-    }
+    // ---------- Motion ----------
 
     updateSlew(elapsedSeconds) {
-        if (this.slewing && this.targetRa !== null && this.targetDec !== null) {
-            let raDiff = this.targetRa - this.telescopeRa;
-            if (raDiff > 180) raDiff -= 360;
-            else if (raDiff < -180) raDiff += 360;
+        if (!this.slewing) return;
+        let raDiff = this.targetRa - this.telescopeRa;
+        if (raDiff > 180) raDiff -= 360;
+        else if (raDiff < -180) raDiff += 360;
+        const decDiff = this.targetDec - this.telescopeDec;
 
-            const decDiff = this.targetDec - this.telescopeDec;
-            const maxMove = SLEW_SPEED * elapsedSeconds;
-
-            // Move RA
-            if (Math.abs(raDiff) > maxMove) {
-                this.telescopeRa = (this.telescopeRa + Math.sign(raDiff) * maxMove + 360) % 360;
-            } else {
-                this.telescopeRa = this.targetRa;
-            }
-
-            // Move Dec
-            if (Math.abs(decDiff) > maxMove) {
-                this.telescopeDec += Math.sign(decDiff) * maxMove;
-            } else {
-                this.telescopeDec = this.targetDec;
-            }
-
-            // Check if we've reached the target
-            if (Math.abs(raDiff) < 0.1 && Math.abs(decDiff) < 0.1) {
-                this.slewing = false;
-                // Don't automatically set tracking
-            }
+        // Move in a straight line, fast when far away and gently near the end
+        const distance = Math.hypot(raDiff * Math.cos(this.telescopeDec * DEG), decDiff);
+        const step = clamp(distance * SLEW_GAIN, SLEW_MIN_SPEED, SLEW_MAX_SPEED) * elapsedSeconds;
+        if (step >= distance) {
+            this.telescopeRa = this.targetRa;
+            this.telescopeDec = this.targetDec;
+            this.slewing = false;
+        } else {
+            const fraction = step / distance;
+            this.telescopeRa = (this.telescopeRa + raDiff * fraction + 360) % 360;
+            this.telescopeDec += decDiff * fraction;
         }
+    }
+
+    updateManualMovement(elapsedSeconds) {
+        if (this.held.size === 0) {
+            this.nudgeTime = 0;
+            return;
+        }
+        this.slewing = false;  // Taking the controls cancels a go-to
+        this.nudgeTime += elapsedSeconds;
+        const maxSpeed = this.guiding ? NUDGE_STEADY_MAX_SPEED : NUDGE_MAX_SPEED;
+        const speed = Math.min(maxSpeed, NUDGE_MIN_SPEED * Math.pow(2, this.nudgeTime / NUDGE_DOUBLING_TIME));
+        const step = speed * elapsedSeconds;
+        // RA lines bunch up near the poles, so take bigger RA steps there to keep screen speed even
+        const raStep = step / Math.max(Math.cos(this.telescopeDec * DEG), 0.05);
+
+        if (this.held.has('left')) this.telescopeRa = (this.telescopeRa - raStep + 360) % 360;
+        if (this.held.has('right')) this.telescopeRa = (this.telescopeRa + raStep) % 360;
+        if (this.held.has('up')) this.telescopeDec = Math.min(90, this.telescopeDec + step);
+        if (this.held.has('down')) this.telescopeDec = Math.max(-90, this.telescopeDec - step);
     }
 
     updateEarthRotation(elapsedSeconds) {
-        if (!this.tracking) {
-            this.telescopeRa = (this.telescopeRa + SIDEREAL_RATE * elapsedSeconds + 360) % 360;
+        if (!this.tracking && !this.slewing) {
+            this.telescopeRa = (this.telescopeRa + SKY_DRIFT_RATE * elapsedSeconds) % 360;
         }
     }
 
-    updateDrift(elapsedSeconds) {
-        if (this.tracking && !this.guiding) {  // Only apply jitter if tracking but not guiding
-            // Pure random jitter with increased frequency but small amplitude
-            const jitterAmount = 0.08;  // doubled from 0.04 to 0.08
-            
-            // Generate random jitter with gaussian-like distribution
-            const getJitter = () => {
-                return ((Math.random() + Math.random()) / 2 - 0.5) * jitterAmount;
-            };
-            
-            // Apply jitter every frame regardless of elapsed time
-            this.telescopeRa = (this.telescopeRa + getJitter() + 360) % 360;
-            this.telescopeDec = Math.max(-90, Math.min(90, this.telescopeDec + getJitter()));
+    updateWobble(elapsedSeconds) {
+        const w = this.wobble;
+        if (!this.guiding && !this.slewing) {
+            // Random wander that keeps getting pulled back to center (Ornstein-Uhlenbeck)
+            const kick = WOBBLE_SIZE * Math.sqrt(2 * elapsedSeconds / WOBBLE_TIME);
+            w.x += -w.x * elapsedSeconds / WOBBLE_TIME + kick * gaussianRandom();
+            w.y += -w.y * elapsedSeconds / WOBBLE_TIME + kick * gaussianRandom();
+        } else {
+            // Guiding locks on quickly
+            const decay = Math.exp(-elapsedSeconds / 0.15);
+            w.x *= decay;
+            w.y *= decay;
         }
+        this.viewRa = (this.telescopeRa + w.x / Math.max(Math.cos(this.telescopeDec * DEG), 0.05) + 360) % 360;
+        this.viewDec = clamp(this.telescopeDec + w.y, -90, 90);
     }
 
-    drawPanel(ctx, fov, scale = 1.0, isExposure = false) {
-        // Clear canvas if not exposure
-        if (!isExposure) {
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        }
+    updateAtmosphere(elapsedSeconds) {
+        this.atmosphere.update(elapsedSeconds);
+        this.aoLevel += ((this.ao ? 1 : 0) - this.aoLevel) * (1 - Math.exp(-elapsedSeconds / AO_LOCK_TIME));
+        this.aoResidual = 1 - (1 - AO_RESIDUAL) * this.aoLevel;
 
-        // Check if this is the telescope view (narrow FOV)
-        const isTelescopeView = (fov === TELESCOPE_FOV);
+        this.subapertures.forEach(sub => {
+            Object.assign(sub, this.atmosphere.sample(sub.x, sub.y));
+        });
+    }
 
-        // Draw objects
+    // Objects within ~1 degree of the view; only these can appear in the telescope and camera
+    updateNearby() {
+        const half = TELESCOPE_FOV / 2;
+        this.nearby = [];
+        this.inView = [];
         this.objects.forEach(obj => {
-            const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, fov, ctx.canvas);
-            if (pos.x >= 0 && pos.x <= ctx.canvas.width && 
-                pos.y >= 0 && pos.y <= ctx.canvas.height) {
-                // For exposure, draw with reduced opacity
-                    if (isExposure) {
-                    ctx.globalAlpha = 0.04;
-                }
-                
-                // Use much larger scale for telescope view to make objects more impressive
-                const drawScale = isTelescopeView ? scale * 8 : scale;
-                obj.draw(ctx, pos, drawScale);
-                
-                    if (isExposure) {
-                        ctx.globalAlpha = 1.0;
-                }
+            if (Math.abs(obj.dec - this.viewDec) > 1.5) return;
+            const offset = projectSky(obj.ra, obj.dec, this.viewRa, this.viewDec);
+            if (!offset || Math.abs(offset.x) > 1 || Math.abs(offset.y) > 1) return;
+            this.nearby.push(obj);
+            if (Math.abs(offset.x) <= half && Math.abs(offset.y) <= half) this.inView.push(obj);
+        });
+    }
+
+    updateCurrentTarget() {
+        let best = null;
+        let bestDist = TELESCOPE_FOV * 0.45;
+        this.targets.forEach(t => {
+            const pos = this.targetPosition(t);
+            const offset = projectSky(pos.ra, pos.dec, this.viewRa, this.viewDec);
+            if (!offset) return;
+            const dist = Math.hypot(offset.x, offset.y);
+            if (dist < bestDist) {
+                best = t;
+                bestDist = dist;
             }
         });
+
+        if (this.currentTarget && !best && !this.slewing && !this.tracking && this.held.size === 0) {
+            this.lostTarget = { target: this.currentTarget, time: this.simulationTime };
+        }
+        if (best) this.lostTarget = null;
+        this.currentTarget = best;
+
+        if (best && best.kind === 'mystery' && !this.seen.has(best.id)) {
+            this.seen.add(best.id);
+            saveSet(SEEN_KEY, this.seen);
+            this.refreshTargetCards();
+            this.showToast('🛸 Whoa! What is THAT?! Take a picture, quick!', 5000);
+        }
+    }
+
+    // ---------- Drawing ----------
+
+    isOnCanvas(pos, canvas, margin) {
+        return pos && pos.x >= -margin && pos.x <= canvas.width + margin &&
+            pos.y >= -margin && pos.y <= canvas.height + margin;
+    }
+
+    drawTelescope() {
+        const sky = this.skyFrameCtx;
+        sky.fillStyle = '#000000';
+        sky.fillRect(0, 0, this.skyFrame.width, this.skyFrame.height);
+        this.nearby.forEach(obj => {
+            const pos = obj.getScreenPosition(this.viewRa, this.viewDec, TELESCOPE_FOV, this.skyFrame);
+            // Generous margin: planets and galaxies are big images centered off-screen
+            if (this.isOnCanvas(pos, this.skyFrame, 250)) obj.draw(sky, pos, 8.0);
+        });
+
+        this.composeSeeing();
+
+        const ctx = this.telescopeCtx;
+        const canvas = this.telescopeCanvas;
+        ctx.drawImage(this.seeingFrame, 0, 0);
+
+        // Faint center mark to help with centering
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+            ctx.moveTo(cx + dx * 8, cy + dy * 8);
+            ctx.lineTo(cx + dx * 18, cy + dy * 18);
+        });
+        ctx.stroke();
+    }
+
+    // Bend the sharp view the way the air does: each part of the image is pushed by the
+    // local slope of the bumpy air, so it ripples like the bottom of a pool. Where the bends
+    // squeeze light together it gets brighter, where they spread it, dimmer (twinkling).
+    composeSeeing() {
+        const r = this.aoResidual;
+        const amp = WARP_PX * r;
+        const ctx = this.seeingCtx;
+        const w = this.skyFrame.width;
+        const h = this.skyFrame.height;
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, w, h);
+        if (amp < 0.5) {
+            ctx.drawImage(this.skyFrame, 0, 0);
+            return;
+        }
+
+        // Displacement and brightness on a coarse grid
+        const n = WARP_GRID + 1;
+        const { dx, dy, gain } = this.warpField;
+        for (let j = 0; j < n; j++) {
+            for (let i = 0; i < n; i++) {
+                const s = this.atmosphere.sample((i / WARP_GRID * 2 - 1) * WARP_FIELD_SCALE, (1 - j / WARP_GRID * 2) * WARP_FIELD_SCALE);
+                dx[j * n + i] = s.gx * amp;
+                dy[j * n + i] = -s.gy * amp;
+            }
+        }
+        const spacingX = w / WARP_GRID;
+        const spacingY = h / WARP_GRID;
+        for (let j = 0; j < n; j++) {
+            for (let i = 0; i < n; i++) {
+                const iL = Math.max(0, i - 1), iR = Math.min(WARP_GRID, i + 1);
+                const jU = Math.max(0, j - 1), jD = Math.min(WARP_GRID, j + 1);
+                const divergence = (dx[j * n + iR] - dx[j * n + iL]) / ((iR - iL) * spacingX) +
+                                   (dy[jD * n + i] - dy[jU * n + i]) / ((jD - jU) * spacingY);
+                gain[j * n + i] = clamp(1 + divergence * TWINKLE_STRENGTH, 0.3, 2.2);
+            }
+        }
+
+        // Each output pixel looks up where its light really came from
+        const src = this.skyFrameCtx.getImageData(0, 0, w, h).data;
+        const out = this.warpImage.data;
+        for (let y = 0; y < h; y++) {
+            const gy = y / spacingY;
+            const j0 = Math.min(WARP_GRID - 1, Math.floor(gy));
+            const fy = gy - j0;
+            for (let x = 0; x < w; x++) {
+                const gx = x / spacingX;
+                const i0 = Math.min(WARP_GRID - 1, Math.floor(gx));
+                const fx = gx - i0;
+                const a = j0 * n + i0, b = a + 1, c2 = a + n, d = c2 + 1;
+                const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+                const sx = x + dx[a] * w00 + dx[b] * w10 + dx[c2] * w01 + dx[d] * w11;
+                const sy = y + dy[a] * w00 + dy[b] * w10 + dy[c2] * w01 + dy[d] * w11;
+                const g = gain[a] * w00 + gain[b] * w10 + gain[c2] * w01 + gain[d] * w11;
+                const o = (y * w + x) * 4;
+                out[o + 3] = 255;
+
+                // Bilinear sample of the sharp image; outside it is black sky
+                const x0 = Math.floor(sx), y0 = Math.floor(sy);
+                if (x0 < 0 || y0 < 0 || x0 >= w - 1 || y0 >= h - 1) {
+                    out[o] = out[o + 1] = out[o + 2] = 0;
+                    continue;
+                }
+                const tx = sx - x0, ty = sy - y0;
+                const p00 = (y0 * w + x0) * 4, p10 = p00 + 4, p01 = p00 + w * 4, p11 = p01 + 4;
+                const k00 = (1 - tx) * (1 - ty) * g, k10 = tx * (1 - ty) * g, k01 = (1 - tx) * ty * g, k11 = tx * ty * g;
+                out[o] = src[p00] * k00 + src[p10] * k10 + src[p01] * k01 + src[p11] * k11;
+                out[o + 1] = src[p00 + 1] * k00 + src[p10 + 1] * k10 + src[p01 + 1] * k01 + src[p11 + 1] * k11;
+                out[o + 2] = src[p00 + 2] * k00 + src[p10 + 2] * k10 + src[p01 + 2] * k01 + src[p11 + 2] * k11;
+            }
+        }
+        this.warpCtx.putImageData(this.warpImage, 0, 0);
+
+        const blur = SEEING_BLUR_PX * r;
+        ctx.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : 'none';
+        ctx.drawImage(this.warpFrame, 0, 0);
+        ctx.filter = 'none';
+    }
+
+    drawFinder() {
+        const ctx = this.acquisitionCtx;
+        const canvas = this.acquisitionCanvas;
+        const fov = FINDER_ZOOMS[this.finderZoom];
+        const scale = 0.5 + (90 - fov) / 150;  // Bigger dots when zoomed in
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        this.objects.forEach(obj => {
+            const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, fov, canvas);
+            if (this.isOnCanvas(pos, canvas, 10)) obj.draw(ctx, pos, scale);
+        });
+
+        // Labels for things to find (the mystery object stays a secret)
+        ctx.font = '11px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        this.targets.forEach(t => {
+            if (t.kind === 'mystery') return;
+            const pos = this.targetPosition(t);
+            const offset = projectSky(pos.ra, pos.dec, this.telescopeRa, this.telescopeDec);
+            if (!offset) return;
+            const x = canvas.width / 2 + (offset.x / fov) * canvas.width;
+            const y = canvas.height / 2 - (offset.y / fov) * canvas.height;
+            if (x < -20 || x > canvas.width || y < 0 || y > canvas.height + 10) return;
+            if (t === this.selectedTarget) {
+                ctx.strokeStyle = '#ffd84d';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y, 9, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.fillStyle = this.collected.has(t.id) ? 'rgba(61, 220, 132, 0.9)' : 'rgba(255, 230, 150, 0.85)';
+            ctx.fillText(t.name, x + 8, y - 6);
+        });
+
+        // Where the go-to is heading
+        if (this.slewing) {
+            const offset = projectSky(this.targetRa, this.targetDec, this.telescopeRa, this.telescopeDec);
+            if (offset) {
+                ctx.strokeStyle = 'rgba(255, 216, 77, 0.6)';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, canvas.height / 2);
+                ctx.lineTo(canvas.width / 2 + (offset.x / fov) * canvas.width,
+                           canvas.height / 2 - (offset.y / fov) * canvas.height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        // Telescope view box, plus crosshair lines leading to it
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const box = Math.max(8, (TELESCOPE_FOV / fov) * canvas.width);
+        ctx.strokeStyle = '#ffd84d';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx - box / 2, cy - box / 2, box, box);
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+            ctx.moveTo(cx + dx * (box / 2 + 6), cy + dy * (box / 2 + 6));
+            ctx.lineTo(cx + dx * (box / 2 + 30), cy + dy * (box / 2 + 30));
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(154, 163, 199, 0.8)';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${fov}° wide`, canvas.width - 6, canvas.height - 6);
     }
 
     drawSHWFS() {
         const ctx = this.shwfsCtx;
+        const canvas = ctx.canvas;
+        const cell = canvas.width / WFS_LENSLETS;
+        const r = this.aoResidual;
         ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw grid
-        ctx.strokeStyle = '#333333';
-        const cellSize = ctx.canvas.width / LENSLET_COUNT;
-        for (let i = 1; i < LENSLET_COUNT; i++) {
-            const pos = i * cellSize;
+        // The WFS needs light: use the brightest thing in the telescope view
+        let star = null;
+        this.inView.forEach(obj => {
+            if (!star || obj.magnitude < star.magnitude) star = obj;
+        });
+        const spotBrightness = star ? clamp((9 - star.magnitude) / 8, 0.35, 1) : 0;
+
+        // Mount wobble moves every dot the same way (Steady fixes that);
+        // the air moves each dot differently (AO fixes that)
+        const common = {
+            x: (this.wobble.x / TELESCOPE_FOV) * canvas.width * 0.25,
+            y: -(this.wobble.y / TELESCOPE_FOV) * canvas.height * 0.25
+        };
+        const maxShift = cell / 2 - 3;
+
+        this.subapertures.forEach(sub => {
+            const x0 = sub.i * cell;
+            const y0 = sub.j * cell;
+            const cx = x0 + cell / 2;
+            const cy = y0 + cell / 2;
+
+            // Tint shows how bumpy the air is here: orange = ahead, blue = behind
+            const height = clamp((sub.h * r) / (this.atmosphere.heightRms * 1.5), -1, 1);
+            ctx.fillStyle = height > 0
+                ? `rgba(255, 140, 60, ${0.35 * height})`
+                : `rgba(60, 140, 255, ${-0.35 * height})`;
+            ctx.fillRect(x0 + 1, y0 + 1, cell - 2, cell - 2);
+            ctx.strokeStyle = '#2a2f45';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x0 + 0.5, y0 + 0.5, cell - 1, cell - 1);
+
+            // Reference mark: where the dot sits when the air is perfectly flat
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
-            ctx.moveTo(pos, 0);
-            ctx.lineTo(pos, ctx.canvas.height);
-            ctx.moveTo(0, pos);
-            ctx.lineTo(ctx.canvas.width, pos);
+            ctx.moveTo(cx - 3, cy);
+            ctx.lineTo(cx + 3, cy);
+            ctx.moveTo(cx, cy - 3);
+            ctx.lineTo(cx, cy + 3);
             ctx.stroke();
+
+            if (!star) return;
+            const sx = cx + clamp(sub.gx * r * WFS_SPOT_GAIN + common.x + (Math.random() - 0.5) * 0.6, -maxShift, maxShift);
+            const sy = cy + clamp(-sub.gy * r * WFS_SPOT_GAIN + common.y + (Math.random() - 0.5) * 0.6, -maxShift, maxShift);
+            const spot = ctx.createRadialGradient(sx, sy, 0, sx, sy, 3.5);
+            spot.addColorStop(0, `rgba(255, 255, 255, ${spotBrightness})`);
+            spot.addColorStop(0.5, `rgba(180, 255, 200, ${spotBrightness * 0.7})`);
+            spot.addColorStop(1, 'rgba(180, 255, 200, 0)');
+            ctx.fillStyle = spot;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        if (this.ao) {
+            ctx.fillStyle = '#3ddc84';
+            ctx.fillText(this.aoLevel > 0.9 ? '✨ AO locked: mirror is fixing the air' : '✨ AO locking on…', 6, 16);
+        } else {
+            ctx.fillStyle = 'rgba(154, 163, 199, 0.9)';
+            ctx.fillText('AO off', 6, 16);
         }
-
-        // Draw telescope view in each quadrant
-        for (let i = 0; i < LENSLET_COUNT; i++) {
-            for (let j = 0; j < LENSLET_COUNT; j++) {
-                // Calculate the quadrant boundaries
-                const quadX = i * cellSize;
-                const quadY = j * cellSize;
-
-                // Save context to clip to quadrant
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(quadX, quadY, cellSize, cellSize);
-                ctx.clip();
-
-                // Draw objects in this quadrant
-                this.objects.forEach(obj => {
-                    const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, ctx.canvas);
-                    
-                    // Add random deviation for atmospheric effects
-                    const deviation = {
-                        x: (Math.random() - 0.5) * SPOT_DEVIATION_MAX,
-                        y: (Math.random() - 0.5) * SPOT_DEVIATION_MAX
-                    };
-
-                    // Adjust position for this quadrant
-                    const adjustedPos = {
-                        x: pos.x - (ctx.canvas.width/2 - quadX - cellSize/2) + deviation.x,
-                        y: pos.y - (ctx.canvas.height/2 - quadY - cellSize/2) + deviation.y
-                    };
-
-                    // Only draw if within the quadrant bounds
-                    if (adjustedPos.x >= quadX && adjustedPos.x <= quadX + cellSize &&
-                        adjustedPos.y >= quadY && adjustedPos.y <= quadY + cellSize) {
-                            obj.draw(ctx, adjustedPos, 0.5);
-                    }
-                });
-
-                ctx.restore();
-            }
+        if (!star) {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(154, 163, 199, 0.9)';
+            ctx.fillText('Point at a star so the sensor has light to measure', canvas.width / 2, canvas.height - 8);
         }
     }
 
-    // Add new method to handle continuous movement
-    updateManualMovement(elapsedSeconds) {
-        // Use much slower speed when guiding is active for fine-tuning
-        const baseMoveSpeed = this.guiding ? 0.5 : 15;  // 0.5 deg/s when guiding, 15 deg/s normally
-        const moveSpeed = baseMoveSpeed * elapsedSeconds;
-
-        this.pressedKeys.forEach(key => {
-            switch(key) {
-                case 'ArrowLeft':
-                    this.telescopeRa = (this.telescopeRa - moveSpeed + 360) % 360;  // reversed direction
-                    break;
-                case 'ArrowRight':
-                    this.telescopeRa = (this.telescopeRa + moveSpeed) % 360;  // reversed direction
-                    break;
-                case 'ArrowUp':
-                    this.telescopeDec = Math.min(90, this.telescopeDec + moveSpeed);
-                    break;
-                case 'ArrowDown':
-                    this.telescopeDec = Math.max(-90, this.telescopeDec - moveSpeed);
-                    break;
-            }
-        });
-    }
-
-    drawReticle(ctx) {
-        const centerX = ctx.canvas.width / 2;
-        const centerY = ctx.canvas.height / 2;
-        const reticleSize = 30;
-        const gap = 10;
-
-        ctx.strokeStyle = '#00FF00';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([]);
-
-        // Draw crosshair lines
-        // Top line
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - gap);
-        ctx.lineTo(centerX, centerY - reticleSize);
-        ctx.stroke();
-
-        // Bottom line
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY + gap);
-        ctx.lineTo(centerX, centerY + reticleSize);
-        ctx.stroke();
-
-        // Left line
-        ctx.beginPath();
-        ctx.moveTo(centerX - gap, centerY);
-        ctx.lineTo(centerX - reticleSize, centerY);
-        ctx.stroke();
-
-        // Right line
-        ctx.beginPath();
-        ctx.moveTo(centerX + gap, centerY);
-        ctx.lineTo(centerX + reticleSize, centerY);
-        ctx.stroke();
-
-        // Draw center circle
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, gap - 2, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Draw outer circle
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, reticleSize + 10, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Add corner brackets
-        const bracketSize = 15;
-        const bracketOffset = 50;
-
-        // Top-left
-        ctx.beginPath();
-        ctx.moveTo(centerX - bracketOffset, centerY - bracketOffset + bracketSize);
-        ctx.lineTo(centerX - bracketOffset, centerY - bracketOffset);
-        ctx.lineTo(centerX - bracketOffset + bracketSize, centerY - bracketOffset);
-        ctx.stroke();
-
-        // Top-right
-        ctx.beginPath();
-        ctx.moveTo(centerX + bracketOffset - bracketSize, centerY - bracketOffset);
-        ctx.lineTo(centerX + bracketOffset, centerY - bracketOffset);
-        ctx.lineTo(centerX + bracketOffset, centerY - bracketOffset + bracketSize);
-        ctx.stroke();
-
-        // Bottom-left
-        ctx.beginPath();
-        ctx.moveTo(centerX - bracketOffset, centerY + bracketOffset - bracketSize);
-        ctx.lineTo(centerX - bracketOffset, centerY + bracketOffset);
-        ctx.lineTo(centerX - bracketOffset + bracketSize, centerY + bracketOffset);
-        ctx.stroke();
-
-        // Bottom-right
-        ctx.beginPath();
-        ctx.moveTo(centerX + bracketOffset - bracketSize, centerY + bracketOffset);
-        ctx.lineTo(centerX + bracketOffset, centerY + bracketOffset);
-        ctx.lineTo(centerX + bracketOffset, centerY + bracketOffset - bracketSize);
-        ctx.stroke();
-    }
-
-    drawSpectralLine(ctx, object, x, y, width, height) {
-        if (!object.spectra) return;
-
-        // Draw wavelength axis
-        ctx.strokeStyle = '#444444';
-        ctx.beginPath();
-        ctx.moveTo(x, y + height);
-        ctx.lineTo(x + width, y + height);
-        ctx.stroke();
-
-        // Draw intensity axis
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x, y + height);
-        ctx.stroke();
-
-        // Draw spectral peaks
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.moveTo(x, y + height);
-
-        // Draw the spectral line
-        for (let i = 0; i < width; i++) {
-            const wavelength = WAVELENGTH_MIN + (i / width) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
-            let intensity = 0;
-
-            // Calculate intensity based on peaks
-            object.spectra.peaks.forEach((peak, idx) => {
-                const peakIntensity = object.spectra.intensities[idx];
-                const sigma = 2; // Width of spectral lines
-                intensity += peakIntensity * Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
-            });
-
-            const px = x + i;
-            const py = y + height - (intensity * height);
-            if (i === 0) {
-                ctx.moveTo(px, py);
-            } else {
-                ctx.lineTo(px, py);
-            }
-        }
-        ctx.stroke();
-
-        // Draw spectral type and features if available
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px Arial';
-        if (object.spectra.type) {
-            ctx.fillText(`Type: ${object.spectra.type}`, x + 5, y + 15);
-        }
-        if (object.spectra.features) {
-            ctx.fillText(`Features: ${object.spectra.features.join(', ')}`, x + 5, y + 30);
-        }
-    }
-
-    // New method to calculate combined spectrum
-    drawCombinedSpectrum(ctx, objects, x, y, width, height) {
-        if (objects.length === 0) return;
-
-        // Calculate spectrum contribution from all objects
-        const intensityData = new Array(width).fill(0);
-
-        // First calculate the base continuum level
-        objects.forEach(obj => {
-            const brightness = Math.pow(10, -obj.magnitude/2.5);
-            // Add a small continuum contribution from each object
-            for (let i = 0; i < width; i++) {
-                intensityData[i] += brightness * 0.01;
-            }
-        });
-
-        // Then add spectral lines at full height
-        objects.forEach(obj => {
-            if (!obj.spectra) return;
-            
-            const brightness = Math.pow(10, -obj.magnitude/2.5);
-            
-            obj.spectra.peaks.forEach((peak, idx) => {
-                const peakIntensity = obj.spectra.intensities[idx];
-                const peakPos = Math.floor(((peak - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN)) * width);
-                
-                // Add gaussian profile around each peak
-                for (let i = Math.max(0, peakPos - 10); i < Math.min(width, peakPos + 10); i++) {
-                    const wavelength = WAVELENGTH_MIN + (i / width) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
-                    const sigma = 1; // Narrower lines
-                    const lineProfile = Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
-                    intensityData[i] += brightness * peakIntensity * lineProfile;
-                }
-            });
-        });
-
-        // Draw the spectral line
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.moveTo(x, y + height);
-
-        intensityData.forEach((intensity, i) => {
-            const px = x + i;
-            const py = y + height - (intensity * height * 0.5); // Adjust scale factor for better visibility
-            if (i === 0) {
-                ctx.moveTo(px, py);
-            } else {
-                ctx.lineTo(px, py);
-            }
-        });
-        ctx.stroke();
-    }
-
-    updateExposure() {
-        const visibleObjects = this.objects.filter(obj => {
-            const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.telescopeCanvas);
-            return pos.x >= 0 && pos.x < this.telescopeCanvas.width && 
-                   pos.y >= 0 && pos.y < this.telescopeCanvas.height;
-        });
+    updateExposure(elapsedSeconds) {
+        const ex = this.exposure;
+        if (ex.state !== 'running') return;
+        ex.elapsed += elapsedSeconds;
 
         if (this.viewMode === 'image') {
-            // Draw current telescope view onto exposure buffer with low opacity
-            // Use same scale as telescope view (8x) to match what's seen
-            visibleObjects.forEach(obj => {
-                const pos = obj.getScreenPosition(this.telescopeRa, this.telescopeDec, TELESCOPE_FOV, this.exposureBuffer);
-                    this.exposureBufferCtx.globalAlpha = 0.02;
-                obj.draw(this.exposureBufferCtx, pos, 8.0);  // Match telescope view scale
+            // Blend in the telescope's view; anything that moved (wobble, drifting sky) smears
+            ex.sinceSample += elapsedSeconds;
+            if (ex.sinceSample >= EXPOSURE_SAMPLE_SECONDS) {
+                this.exposureBufferCtx.globalAlpha = 1 - Math.exp(-ex.sinceSample * EXPOSURE_RATE);
+                this.exposureBufferCtx.drawImage(this.seeingFrame, 0, 0);
                 this.exposureBufferCtx.globalAlpha = 1.0;
-            });
+                ex.sinceSample = 0;
+            }
         } else {
-            // Initialize the spectrum data array if it doesn't exist
-            if (!this.spectrumData) {
-                this.spectrumData = new Array(SPECTRA_WIDTH - 100).fill(0);
-            }
-
-            // Draw simple axes if buffer is empty
-            if (!this.spectralAxesDrawn) {
-                this.exposureBufferCtx.fillStyle = '#000000';
-                this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
-                
-                // Draw basic wavelength axis - moved closer to bottom (changed from SPECTRA_HEIGHT - 50 to SPECTRA_HEIGHT - 20)
-                this.exposureBufferCtx.strokeStyle = '#333333';
-                this.exposureBufferCtx.beginPath();
-                this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
-                this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 20);
-                this.exposureBufferCtx.stroke();
-                
-                this.spectralAxesDrawn = true;
-            }
-
-            // Add each object's contribution to the spectrum data
-            visibleObjects.forEach(obj => {
-                // Every object contributes to the spectrum
-                const brightness = Math.pow(10, -obj.magnitude/2.5);
-                
-                // Add spectral lines
+            let brightest = null;
+            this.inView.forEach(obj => {
+                if (!obj.spectra) return;  // Satellites have no spectrum
+                if (!brightest || obj.magnitude < brightest.magnitude) brightest = obj;
+                const brightness = Math.min(Math.pow(10, -obj.magnitude / 2.5), 50);
+                for (let i = 0; i < SPECTRUM_POINTS; i++) {
+                    this.spectrumData[i] += brightness * 0.15 * elapsedSeconds;  // Smooth glow under the lines
+                }
                 obj.spectra.peaks.forEach((peak, idx) => {
-                    const peakIntensity = obj.spectra.intensities[idx] * brightness;
-                    const peakPos = Math.floor(((peak - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN)) * (SPECTRA_WIDTH - 100));
-                    
-                    // Add gaussian profile around each peak
-                    for (let i = Math.max(0, peakPos - 5); i < Math.min(SPECTRA_WIDTH - 100, peakPos + 5); i++) {
-                        const wavelength = WAVELENGTH_MIN + (i / (SPECTRA_WIDTH - 100)) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
-                        const sigma = 0.5; // Narrower lines for better definition
-                        const contribution = Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
-                        this.spectrumData[i] += contribution * 0.0005; // Reduced from 0.005 to 0.0005 for slower growth
+                    const strength = obj.spectra.intensities[idx] * brightness * elapsedSeconds;
+                    const center = Math.round((peak - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN) * (SPECTRUM_POINTS - 1));
+                    for (let i = Math.max(0, center - 8); i < Math.min(SPECTRUM_POINTS, center + 9); i++) {
+                        const wavelength = WAVELENGTH_MIN + (i / (SPECTRUM_POINTS - 1)) * (WAVELENGTH_MAX - WAVELENGTH_MIN);
+                        const sigma = 2;
+                        this.spectrumData[i] += strength * Math.exp(-Math.pow(wavelength - peak, 2) / (2 * sigma * sigma));
                     }
                 });
             });
-
-            // Clear and redraw the spectrum
-            this.exposureBufferCtx.fillStyle = '#000000';
-            this.exposureBufferCtx.fillRect(0, 0, this.exposureBuffer.width, this.exposureBuffer.height);
-            
-            // Draw the wavelength axis - moved closer to bottom
-            this.exposureBufferCtx.strokeStyle = '#333333';
-            this.exposureBufferCtx.beginPath();
-            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
-            this.exposureBufferCtx.lineTo(SPECTRA_WIDTH - 50, SPECTRA_HEIGHT - 20);
-            this.exposureBufferCtx.stroke();
-
-            // Draw the accumulated spectrum - moved closer to bottom
-            this.exposureBufferCtx.strokeStyle = '#FFFFFF';
-            this.exposureBufferCtx.beginPath();
-            this.exposureBufferCtx.moveTo(50, SPECTRA_HEIGHT - 20);
-
-            for (let i = 0; i < this.spectrumData.length; i++) {
-                const x = 50 + i;
-                const y = SPECTRA_HEIGHT - 20 - (this.spectrumData[i] * (SPECTRA_HEIGHT - 40));
-                if (i === 0) {
-                    this.exposureBufferCtx.moveTo(x, y);
-                } else {
-                    this.exposureBufferCtx.lineTo(x, y);
-                }
+            if (brightest) {
+                this.spectrumCaption = `Light from ${SPECTRUM_CAPTIONS[brightest.spectra.type] || 'space'}`;
             }
-            this.exposureBufferCtx.stroke();
         }
 
-        // Copy buffer to visible canvas
-        this.exposureCtx.drawImage(this.exposureBuffer, 0, 0);
+        if (ex.elapsed >= EXPOSURE_SECONDS) this.finishExposure();
+    }
+
+    drawExposure() {
+        const ctx = this.exposureCtx;
+        const canvas = this.exposureCanvas;
+        const ex = this.exposure;
+
+        if (this.viewMode === 'image') {
+            ctx.drawImage(this.exposureBuffer, 0, 0);
+        } else {
+            this.drawSpectrum(ctx);
+        }
+
+        ctx.textAlign = 'center';
+        if (ex.state === 'idle') {
+            ctx.fillStyle = 'rgba(154, 163, 199, 0.9)';
+            ctx.font = '16px system-ui, sans-serif';
+            ctx.fillText(this.viewMode === 'image' ? 'Press 📸 Take Picture' : 'Press 📸 to catch a rainbow',
+                canvas.width / 2, canvas.height / 2);
+        } else if (ex.state === 'running') {
+            const progress = Math.min(1, ex.elapsed / EXPOSURE_SECONDS);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(10, canvas.height - 16, canvas.width - 20, 8);
+            ctx.fillStyle = '#ffd84d';
+            ctx.fillRect(10, canvas.height - 16, (canvas.width - 20) * progress, 8);
+        }
+    }
+
+    drawSpectrum(ctx) {
+        const canvas = ctx.canvas;
+        const ex = this.exposure;
+        const left = 25;
+        const right = canvas.width - 25;
+        const top = 60;
+        const base = canvas.height - 70;
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const rainbow = ctx.createLinearGradient(left, 0, right, 0);
+        RAINBOW_STOPS.forEach(([wavelength, color]) => {
+            rainbow.addColorStop((wavelength - WAVELENGTH_MIN) / (WAVELENGTH_MAX - WAVELENGTH_MIN), color);
+        });
+
+        // Color key under the graph
+        ctx.fillStyle = rainbow;
+        ctx.fillRect(left, base + 8, right - left, 10);
+        ctx.fillStyle = '#9aa3c7';
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('violet', left, base + 34);
+        ctx.textAlign = 'right';
+        ctx.fillText('red', right, base + 34);
+
+        const max = Math.max(...this.spectrumData);
+        if (ex.state === 'idle' || max <= 0) return;
+
+        // Grows in as light is collected
+        const growth = ex.state === 'running' ? Math.min(1, ex.elapsed / EXPOSURE_SECONDS) : 1;
+        const height = (base - top) * growth;
+        ctx.beginPath();
+        ctx.moveTo(left, base);
+        this.spectrumData.forEach((value, i) => {
+            ctx.lineTo(left + (i / (SPECTRUM_POINTS - 1)) * (right - left), base - (value / max) * height);
+        });
+        ctx.lineTo(right, base);
+        ctx.closePath();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = rainbow;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.spectrumCaption, canvas.width / 2, 30);
+    }
+
+    // ---------- Guidance UI ----------
+
+    // Which of the 6 steps the player is on (7 = all done)
+    computeStep() {
+        const ex = this.exposure;
+        if (!ex.stale && ex.state === 'done') return ex.saved ? 7 : 6;
+        if (!ex.stale && ex.state === 'running') return 5;
+        if (this.slewing || (!this.currentTarget && this.inView.length === 0)) return 1;
+        if (!this.tracking) return 2;
+        if (!this.guiding) return 3;
+        if (!this.ao) return 4;
+        return 5;
+    }
+
+    computeHint(step) {
+        const name = this.currentTarget ? this.currentTarget.name : 'the stars';
+        if (this.slewing) {
+            return `🚀 Moving the telescope${this.selectedTarget ? ' to ' + this.selectedTarget.name : ''}…`;
+        }
+        switch (step) {
+            case 1:
+                if (this.lostTarget && this.simulationTime - this.lostTarget.time < 8) {
+                    return `😮 Oops! The sky drifted and ${this.lostTarget.target.name} slid away. Click it again, then press Follow right away.`;
+                }
+                return '👉 Pick something to look at from the list, or click anywhere on the Sky Map.';
+            case 2:
+                return `🌍 The Earth is spinning, so ${name} is drifting away! Press <b>Follow</b> (or the Space bar).`;
+            case 3:
+                return `🎯 ${this.currentTarget ? name + ' is' : 'The view is'} wobbling a little. Press <b>Steady</b> to hold it still.`;
+            case 4:
+                return `✨ The air is making ${name} blurry and shimmery. Press <b>AO</b> to sharpen it!`;
+            case 5:
+                return this.exposure.state === 'running' && !this.exposure.stale
+                    ? '⏳ Hold still… the camera is collecting light.'
+                    : '📸 Perfect! Press <b>Take Picture</b>.';
+            case 6:
+                return '💾 Nice shot! Press <b>Save to Gallery</b> to keep it.';
+            default:
+                return '🎉 Saved! Pick something new from the list to keep exploring.';
+        }
+    }
+
+    // Only touch the DOM when something changed
+    setIfChanged(key, apply, value) {
+        if (this.uiCache[key] !== value) {
+            this.uiCache[key] = value;
+            apply(value);
+        }
+    }
+
+    updateUI() {
+        const ui = this.ui;
+        const ex = this.exposure;
+        const step = this.computeStep();
+
+        this.setIfChanged('hint', v => { ui.hint.innerHTML = v; }, this.computeHint(step));
+        this.setIfChanged('step', () => {
+            ui.steps.forEach(li => {
+                const n = Number(li.dataset.step);
+                li.classList.toggle('done', n < step);
+                li.classList.toggle('current', n === step);
+            });
+            const attentionFor = { 1: ui.targets, 2: ui.trackingButton, 3: ui.guidingButton, 4: ui.aoButton, 5: ui.exposureButton, 6: ui.saveButton };
+            [ui.targets, ui.trackingButton, ui.guidingButton, ui.aoButton, ui.exposureButton, ui.saveButton].forEach(el => el.classList.remove('attention'));
+            const running = ex.state === 'running' && !ex.stale;
+            if (attentionFor[step] && !this.slewing && !running && step !== 1) attentionFor[step].classList.add('attention');
+        }, `${step}|${this.slewing}|${ex.state}`);
+
+        this.setIfChanged('tracking', on => {
+            ui.trackingButton.textContent = `🌍 Follow: ${on ? 'ON' : 'OFF'}`;
+            ui.trackingButton.classList.toggle('on', on);
+            ui.trackingButton.title = 'Keep up with the spinning sky (Space)';
+        }, this.tracking);
+        this.setIfChanged('guiding', state => {
+            ui.guidingButton.textContent = `🎯 Steady: ${this.guiding ? 'ON' : 'OFF'}`;
+            ui.guidingButton.classList.toggle('on', this.guiding);
+            ui.guidingButton.classList.toggle('unavailable', !this.tracking);
+            ui.guidingButton.title = this.tracking ? 'Stop the wobble (G)' : 'Turn on Follow first';
+        }, `${this.guiding}|${this.tracking}`);
+
+        this.setIfChanged('ao', on => {
+            ui.aoButton.textContent = `✨ AO: ${on ? 'ON' : 'OFF'}`;
+            ui.aoButton.classList.toggle('on', on);
+            ui.aoButton.title = 'Adaptive optics: a bendy mirror that un-blurs the wobbly air (O)';
+        }, this.ao);
+
+        let exposureLabel = '📸 Take Picture';
+        if (ex.state === 'running') exposureLabel = `⏳ Taking… ${Math.max(0, EXPOSURE_SECONDS - ex.elapsed).toFixed(1)}s`;
+        else if (ex.state === 'done') exposureLabel = '📸 Take Another';
+        this.setIfChanged('exposure', v => { ui.exposureButton.textContent = v; }, exposureLabel);
+        this.setIfChanged('save', idle => { ui.saveButton.disabled = idle; }, ex.state === 'idle');
+        this.setIfChanged('mode', mode => {
+            ui.viewModeButton.textContent = mode === 'image' ? 'Camera: 📷 Photo' : 'Camera: 🌈 Rainbow';
+            ui.viewModeButton.title = 'Switch between a normal photo and a rainbow (spectrum) of the light';
+        }, this.viewMode);
+
+        let caption;
+        if (this.slewing) caption = '🚀 On the way…';
+        else if (this.currentTarget && this.currentTarget.kind === 'mystery') caption = `<strong>🛸 ${this.currentTarget.name}</strong> ${this.currentTarget.fact}`;
+        else if (this.currentTarget) caption = `<strong>${this.currentTarget.name}</strong> — ${this.currentTarget.fact}`;
+        else if (this.inView.length > 0) caption = 'Just some stars here. Pick a target from the list to find something amazing!';
+        else caption = 'Empty sky. Pick a target from the list!';
+        this.setIfChanged('caption', v => { ui.caption.innerHTML = v; }, caption);
+
+        // Keep this exact format: telescope_control.py parses it
+        this.setIfChanged('coords', v => { ui.coords.textContent = v; },
+            `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)} | ${this.tracking ? 'FOLLOWING' : 'NOT FOLLOWING'}`);
     }
 
     animate() {
         const now = performance.now();
-        const elapsedSeconds = (now - this.lastUpdate) / 1000;
+        // Cap the step so a background tab doesn't jump the sky when you come back
+        const elapsedSeconds = Math.min(0.1, (now - this.lastUpdate) / 1000);
         this.lastUpdate = now;
         this.simulationTime += elapsedSeconds;
 
         // Update simulation date slowly (1 minute of real time per second)
         this.simulationDate = new Date(this.simulationDate.getTime() + elapsedSeconds * 60 * 1000);
 
-        // Update
         this.updateSlew(elapsedSeconds);
         this.updateManualMovement(elapsedSeconds);
         this.updateEarthRotation(elapsedSeconds);
-        this.updateDrift(elapsedSeconds);
-        
-        // Update dynamic objects
+        this.updateWobble(elapsedSeconds);
+        this.updateAtmosphere(elapsedSeconds);
+
         this.objects.forEach(obj => {
             if (obj instanceof Planet) {
-                // Update planet positions every frame (they move slowly)
                 obj.updatePosition(this.simulationDate);
             } else if (obj instanceof Satellite) {
                 obj.update(elapsedSeconds);
             }
         });
 
-        // Draw
-        this.drawPanel(this.telescopeCtx, TELESCOPE_FOV, 1.0);
-        this.drawPanel(this.acquisitionCtx, ACQUISITION_FOV, 0.5);
-        this.drawReticle(this.acquisitionCtx);  // Add reticle to acquisition view
+        this.updateNearby();
+        this.updateCurrentTarget();
+
+        this.drawTelescope();
+        this.drawFinder();
         this.drawSHWFS();
-        this.updateExposure();
-        this.updateCoordinates();
+        this.updateExposure(elapsedSeconds);
+        this.drawExposure();
+        this.updateUI();
 
         requestAnimationFrame(() => this.animate());
     }
@@ -1569,4 +2155,4 @@ class TelescopeSimulator {
 // Start the simulator when the page loads
 window.addEventListener('load', () => {
     new TelescopeSimulator();
-}); 
+});

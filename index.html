@@ -3,66 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telescope Simulator</title>
+    <title>Telescope Explorer</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <div class="view-toggle">
-            <button id="telescope-view-button" class="active">Telescope</button>
-            <button id="gallery-view-button">Gallery</button>
-            <a href="/download_project" class="download-button">Download Project</a>
-        </div>
+        <header class="topbar">
+            <h1>🔭 Telescope Explorer</h1>
+            <nav class="view-toggle">
+                <button id="telescope-view-button" class="active">Telescope</button>
+                <button id="gallery-view-button">🖼️ Gallery</button>
+                <button id="help-button">❓ How to play</button>
+            </nav>
+        </header>
 
         <div id="telescope-view">
-            <div class="controls">
-                <div class="input-group">
-                    <label for="ra-input">Target RA (HH:MM)</label>
-                    <input type="text" id="ra-input" placeholder="HH:MM">
-                </div>
-                <div class="input-group">
-                    <label for="dec-input">Target Dec (deg)</label>
-                    <input type="text" id="dec-input" placeholder="Degrees">
-                </div>
-                <button id="slew-button">Slew</button>
-                <button id="tracking-button">Follow: OFF</button>
-                <button id="guiding-button">Guide: OFF</button>
-                <button id="exposure-button">Start Exposure</button>
-                <button id="view-mode-button">View: Image</button>
-            </div>
-            
-            <div class="coordinates">
-                <div id="current-coords"></div>
+            <ol class="steps" id="steps">
+                <li data-step="1"><span class="step-num">1</span>Aim</li>
+                <li data-step="2"><span class="step-num">2</span>Follow</li>
+                <li data-step="3"><span class="step-num">3</span>Steady</li>
+                <li data-step="4"><span class="step-num">4</span>AO</li>
+                <li data-step="5"><span class="step-num">5</span>Picture</li>
+                <li data-step="6"><span class="step-num">6</span>Save</li>
+            </ol>
+            <div id="hint" class="hint" aria-live="polite"></div>
+
+            <div class="layout">
+                <aside class="targets" id="targets">
+                    <div class="targets-header">
+                        <h2>Things to find</h2>
+                        <span id="collection-count" class="count"></span>
+                    </div>
+                    <p class="targets-note">Click one to point the telescope at it. Take its picture to collect it!</p>
+                    <div id="target-list" class="target-list"></div>
+
+                    <div class="expert">
+                        <h3>Go to coordinates</h3>
+                        <div class="expert-row">
+                            <label>RA <span class="unit">(hours:min)</span>
+                                <input type="text" id="ra-input" placeholder="10:00" autocomplete="off">
+                            </label>
+                            <label>Dec <span class="unit">(degrees)</span>
+                                <input type="text" id="dec-input" placeholder="+25" autocomplete="off">
+                            </label>
+                            <button id="slew-button">Go</button>
+                        </div>
+                        <p id="coord-error" class="coord-error"></p>
+                    </div>
+                    <button id="reset-collection" class="link-button">Start collection over</button>
+                </aside>
+
+                <main class="views">
+                    <div class="controls-bar">
+                        <div class="main-buttons">
+                            <button id="tracking-button" class="big-button"></button>
+                            <button id="guiding-button" class="big-button"></button>
+                            <button id="ao-button" class="big-button"></button>
+                            <button id="exposure-button" class="big-button"></button>
+                            <button id="view-mode-button" class="big-button secondary"></button>
+                        </div>
+                        <div class="dpad" aria-label="Move the telescope">
+                            <button data-dir="up" class="dpad-up" aria-label="Up">▲</button>
+                            <button data-dir="left" class="dpad-left" aria-label="Left">◀</button>
+                            <span class="dpad-center">move</span>
+                            <button data-dir="right" class="dpad-right" aria-label="Right">▶</button>
+                            <button data-dir="down" class="dpad-down" aria-label="Down">▼</button>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>🔭 Telescope <span class="panel-sub">zoomed way in</span></h3>
+                        <canvas id="telescope-panel" width="350" height="350"></canvas>
+                        <p id="telescope-caption" class="caption"></p>
+                    </div>
+                    <div class="panel">
+                        <h3>📷 Camera</h3>
+                        <canvas id="exposure-panel" width="350" height="350"></canvas>
+                        <button id="save-exposure-button" class="panel-button" disabled>💾 Save to Gallery</button>
+                    </div>
+                    <div class="panel">
+                        <h3>🗺️ Sky Map <span class="panel-sub">click anywhere to go there</span>
+                            <span class="zoom">
+                                <button id="finder-zoom-out" aria-label="Zoom out">−</button>
+                                <button id="finder-zoom-in" aria-label="Zoom in">+</button>
+                            </span>
+                        </h3>
+                        <canvas id="acquisition-panel" width="350" height="350"></canvas>
+                        <p class="caption">The yellow box shows where the telescope is looking.</p>
+                    </div>
+                    <div class="panel">
+                        <h3>✨ AO Wavefront Sensor</h3>
+                        <canvas id="shwfs-panel" width="350" height="350"></canvas>
+                        <p class="caption">Each tiny lens makes a dot of starlight. Bumpy air pushes the dots off their <b>+</b> marks. <b>AO</b> bends a mirror to push them back!</p>
+                    </div>
+                </main>
             </div>
 
-            <div class="panels">
-                <div class="panel">
-                    <h3>Telescope View</h3>
-                    <canvas id="telescope-panel" width="350" height="350"></canvas>
-                </div>
-                <div class="panel">
-                    <h3>Acquisition View</h3>
-                    <canvas id="acquisition-panel" width="350" height="350"></canvas>
-                </div>
-                <div class="panel">
-                    <h3>SHWFS View</h3>
-                    <canvas id="shwfs-panel" width="350" height="350"></canvas>
-                </div>
-                <div class="panel">
-                    <h3>Exposure</h3>
-                    <canvas id="exposure-panel" width="350" height="350"></canvas>
-                    <button id="save-exposure-button" class="panel-button">Save Exposure</button>
-                </div>
+            <div class="coordinates">
+                <div id="current-coords"></div>
             </div>
         </div>
 
         <div id="gallery-view" style="display: none;">
-            <h2>Saved Exposures</h2>
+            <h2>My Pictures</h2>
             <div id="exposure-gallery" class="gallery"></div>
         </div>
+
+        <footer class="footer">
+            <a href="/download_project" class="download-button">Download Project</a>
+        </footer>
     </div>
+
+    <div id="toast" class="toast" role="status"></div>
+
+    <div id="help-overlay" class="overlay" hidden>
+        <div class="help-card" role="dialog" aria-labelledby="help-title">
+            <h2 id="help-title">Welcome, Astronomer! 🔭</h2>
+            <ol class="help-steps">
+                <li><b>👉 Aim</b> &mdash; click a planet, galaxy or star in the list, or click the Sky Map.</li>
+                <li><b>🌍 Follow</b> &mdash; the Earth spins, so the sky slowly drifts away. Follow keeps up with it.</li>
+                <li><b>🎯 Steady</b> &mdash; stops the telescope wobbling.</li>
+                <li><b>✨ AO</b> &mdash; the air above us is bumpy and makes things blurry and shimmery. Adaptive optics bends a special mirror hundreds of times a second to undo it!</li>
+                <li><b>📸 Take Picture</b> &mdash; hold still while the camera collects light.</li>
+                <li><b>💾 Save</b> &mdash; put your picture in the Gallery!</li>
+            </ol>
+            <p><b>Moving around:</b> arrow keys (or the arrow buttons). Tap for a tiny nudge, hold to go faster.</p>
+            <p><b>Shortcuts:</b> Space = Follow, G = Steady, O = AO, P = Take Picture.</p>
+            <p>Collect them all &mdash; and see if you can track down the <b>mystery object</b>! 🕵️</p>
+            <button id="help-close" class="big-button">Let's go!</button>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
     <script src="skyConfig.js"></script>
     <script src="telescope.js"></script>
 </body>
-</html> 
+</html>
