@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
+import hmac
 import os
 from datetime import datetime
 import zipfile
@@ -6,6 +7,10 @@ import io
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+# Teacher code that unlocks every target name in the browser. Set UNLOCK_CODE on Cloud Run;
+# the default is only for local runs (this source is downloadable from the site).
+UNLOCK_CODE = os.environ.get('UNLOCK_CODE', 'telescope')
 
 # Create uploads directory if it doesn't exist
 UPLOAD_FOLDER = 'exposures'
@@ -25,6 +30,11 @@ def serve_static(filename):
 @app.route('/exposures/<path:filename>')
 def serve_exposure(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+@app.route('/unlock', methods=['POST'])
+def unlock():
+    code = str((request.get_json(silent=True) or {}).get('code', '')).strip().lower()
+    return jsonify({'success': hmac.compare_digest(code.encode(), UNLOCK_CODE.lower().encode())})
 
 @app.route('/list_exposures')
 def list_exposures():

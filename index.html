@@ -14,6 +14,7 @@
                 <button id="telescope-view-button" class="active">Telescope</button>
                 <button id="gallery-view-button">🖼️ Gallery</button>
                 <button id="help-button">❓ How to play</button>
+                <button id="unlock-button"></button>
             </nav>
         </header>
 
@@ -63,13 +64,6 @@
                             <button id="exposure-button" class="big-button"></button>
                             <button id="view-mode-button" class="big-button secondary"></button>
                         </div>
-                        <div class="dpad" aria-label="Move the telescope">
-                            <button data-dir="up" class="dpad-up" aria-label="Up">▲</button>
-                            <button data-dir="left" class="dpad-left" aria-label="Left">◀</button>
-                            <span class="dpad-center">move</span>
-                            <button data-dir="right" class="dpad-right" aria-label="Right">▶</button>
-                            <button data-dir="down" class="dpad-down" aria-label="Down">▼</button>
-                        </div>
                     </div>
 
                     <div class="panel">
@@ -90,7 +84,16 @@
                             </span>
                         </h3>
                         <canvas id="acquisition-panel" width="350" height="350"></canvas>
-                        <p class="caption">The yellow box shows where the telescope is looking.</p>
+                        <div class="map-footer">
+                            <p class="caption">The yellow box shows where the telescope is looking.</p>
+                            <div class="dpad" aria-label="Move the telescope">
+                                <button data-dir="up" class="dpad-up" aria-label="Up">▲</button>
+                                <button data-dir="left" class="dpad-left" aria-label="Left">◀</button>
+                                <span class="dpad-center">move</span>
+                                <button data-dir="right" class="dpad-right" aria-label="Right">▶</button>
+                                <button data-dir="down" class="dpad-down" aria-label="Down">▼</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="panel">
                         <h3>✨ AO Wavefront Sensor</h3>
@@ -116,6 +119,19 @@
     </div>
 
     <div id="toast" class="toast" role="status"></div>
+
+    <div id="unlock-overlay" class="overlay" hidden>
+        <form id="unlock-form" class="help-card unlock-card" role="dialog" aria-labelledby="unlock-title">
+            <h2 id="unlock-title">🔒 Teacher unlock</h2>
+            <p>Enter the code to show every name and picture.</p>
+            <input type="password" id="unlock-code" autocomplete="off" aria-label="Unlock code">
+            <p id="unlock-error" class="coord-error"></p>
+            <div class="unlock-actions">
+                <button type="button" id="unlock-cancel">Cancel</button>
+                <button type="submit" class="big-button">Unlock</button>
+            </div>
+        </form>
+    </div>
 
     <div id="help-overlay" class="overlay" hidden>
         <div class="help-card" role="dialog" aria-labelledby="help-title">

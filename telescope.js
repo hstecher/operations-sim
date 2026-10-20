@@ -58,6 +58,7 @@ const SATELLITE_MAGNITUDE = 2;  // Fairly bright
 const COLLECTED_KEY = 'telescopeExplorer.collected';
 const SEEN_KEY = 'telescopeExplorer.seen';
 const HELP_SEEN_KEY = 'telescopeExplorer.helpSeen';
+const UNLOCKED_KEY = 'telescopeExplorer.unlocked';  // teacher code entered: show every name and picture
 
 // Planet colors (for future use)
 const PLANET_COLORS = {
@@ -1140,6 +1141,8 @@ class TelescopeSimulator {
 
         this.collected = loadSet(COLLECTED_KEY);
         this.seen = loadSet(SEEN_KEY);
+        this.unlocked = false;
+        try { this.unlocked = localStorage.getItem(UNLOCKED_KEY) === '1'; } catch (e) {}
         this.uiCache = {};
 
         this.setupInputHandlers();
@@ -1192,6 +1195,7 @@ class TelescopeSimulator {
         ui.galleryViewButton.addEventListener('click', () => this.showView('gallery'));
         document.getElementById('help-button').addEventListener('click', () => this.showHelp());
         document.getElementById('help-close').addEventListener('click', () => this.hideHelp());
+        this.setupUnlock();
         ui.helpOverlay.addEventListener('click', (e) => {
             if (e.target === ui.helpOverlay) this.hideHelp();
         });
@@ -1311,6 +1315,57 @@ class TelescopeSimulator {
         window.addEventListener('blur', () => this.held.clear());
     }
 
+    // Teacher code (checked by the server) unlocks every name and picture on this device
+    setupUnlock() {
+        const button = document.getElementById('unlock-button');
+        const overlay = document.getElementById('unlock-overlay');
+        const form = document.getElementById('unlock-form');
+        const code = document.getElementById('unlock-code');
+        const error = document.getElementById('unlock-error');
+        const label = () => { button.textContent = this.unlocked ? '🔓 Lock names' : '🔒 Teacher'; };
+        const close = () => { overlay.hidden = true; code.value = ''; error.textContent = ''; };
+        const setUnlocked = (on) => {
+            this.unlocked = on;
+            try { on ? localStorage.setItem(UNLOCKED_KEY, '1') : localStorage.removeItem(UNLOCKED_KEY); } catch (e) {}
+            label();
+            this.refreshTargetCards();
+        };
+        label();
+
+        button.addEventListener('click', () => {
+            if (this.unlocked) {
+                setUnlocked(false);
+                this.showToast('🔒 Names hidden again.');
+            } else {
+                overlay.hidden = false;
+                code.focus();
+            }
+        });
+        document.getElementById('unlock-cancel').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            fetch('/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code.value })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        error.textContent = 'That code is not right.';
+                        code.select();
+                        return;
+                    }
+                    close();
+                    setUnlocked(true);
+                    this.showToast('🔓 All names and pictures unlocked.');
+                })
+                .catch(() => { error.textContent = 'Could not check the code. Try again.'; });
+        });
+    }
+
     buildTargetList() {
         this.targets = TARGETS;
         this.category = 'all';
@@ -1344,17 +1399,28 @@ class TelescopeSimulator {
             const button = this.targetButtons.get(t.id);
             const hidden = this.isHidden(t);
             const collected = this.collected.has(t.id);
+            const mystery = t.kind === 'mystery';
             let thumb;
             if (hidden) thumb = '<span class="thumb thumb-emoji">❓</span>';
             else if (t.image) thumb = `<img class="thumb" src="${t.image}" alt="" loading="lazy">`;
             else thumb = '<span class="thumb thumb-emoji">⭐</span>';
+            let name = t.name;
+            let kind = t.label || KIND_LABELS[t.kind];
+            if (hidden) {
+                name = mystery ? 'Mystery object' : '???';
+                kind = mystery ? 'Click for a clue' : KIND_LABELS[t.kind];
+            } else if (this.unlocked && !t.orbit) {
+                // Teacher view: coordinates to read out (orbiting machines move too fast to list)
+                const pos = this.targetPosition(t);
+                kind += ` · ${this.formatRA(pos.ra)} ${this.formatDec(pos.dec)}`;
+            }
             button.innerHTML = `${thumb}
                 <span class="card-text">
-                    <span class="card-name">${hidden ? 'Mystery object' : t.name}</span>
-                    <span class="card-kind">${hidden ? 'Click for a clue' : t.label || KIND_LABELS[t.kind]}</span>
+                    <span class="card-name">${name}</span>
+                    <span class="card-kind">${kind}</span>
                 </span>
                 <span class="card-check">${collected ? '✓' : ''}</span>`;
-            button.title = hidden ? t.clue : t.fact;
+            button.title = hidden ? (mystery ? t.clue : '') : t.fact;
             button.classList.toggle('collected', collected);
             button.classList.toggle('selected', this.selectedTarget === t);
             button.hidden = !this.inCategory(t, this.category);
@@ -1374,8 +1440,13 @@ class TelescopeSimulator {
         return !cat.kinds || cat.kinds.includes(target.kind);
     }
 
+    // Names and pictures stay secret until the telescope has looked at them (or the teacher unlocks)
     isHidden(target) {
-        return target.kind === 'mystery' && !this.seen.has(target.id);
+        return !this.unlocked && !this.seen.has(target.id) && !this.collected.has(target.id);
+    }
+
+    nameOf(target, fallback) {
+        return this.isHidden(target) ? fallback : target.name;
     }
 
     targetPosition(target) {
@@ -1388,7 +1459,7 @@ class TelescopeSimulator {
 
     // List click: fill in RA/Dec so kids press Go themselves
     pickTarget(target) {
-        if (this.isHidden(target)) {
+        if (target.kind === 'mystery' && this.isHidden(target)) {
             this.showToast('🕵️ Clue: ' + target.clue, 7000);
             this.ui.raInput.focus();
             return;
@@ -1774,11 +1845,14 @@ class TelescopeSimulator {
         if (best) this.lostTarget = null;
         this.currentTarget = best;
 
-        if (best && best.kind === 'mystery' && !this.seen.has(best.id)) {
+        // Reveal once the telescope settles on it (not while sweeping past during a slew)
+        if (best && !this.slewing && !this.seen.has(best.id)) {
+            const wasHidden = this.isHidden(best);
             this.seen.add(best.id);
             saveSet(SEEN_KEY, this.seen);
             this.refreshTargetCards();
-            this.showToast('🛸 Whoa! What is THAT?! Take a picture, quick!', 5000);
+            if (best.kind === 'mystery') this.showToast('🛸 Whoa! What is THAT?! Take a picture, quick!', 5000);
+            else if (wasHidden) this.showToast(`🔭 You found ${best.name}!`, 4000);
         }
     }
 
@@ -2192,14 +2266,15 @@ class TelescopeSimulator {
     }
 
     computeHint(step) {
-        const name = this.currentTarget ? this.currentTarget.name : 'the stars';
+        const name = this.currentTarget ? this.nameOf(this.currentTarget, 'it') : 'the stars';
         if (this.slewing) {
-            return `🚀 Moving the telescope${this.selectedTarget ? ' to ' + this.selectedTarget.name : ''}…`;
+            const dest = this.selectedTarget ? this.nameOf(this.selectedTarget, '') : '';
+            return `🚀 Moving the telescope${dest ? ' to ' + dest : ''}…`;
         }
         switch (step) {
             case 1:
                 if (this.lostTarget && this.simulationTime - this.lostTarget.time < 8) {
-                    return `😮 Oops! The sky drifted and ${this.lostTarget.target.name} slid away. Click it again, then press Follow right away.`;
+                    return `😮 Oops! The sky drifted and ${this.nameOf(this.lostTarget.target, 'your target')} slid away. Click it again, then press Follow right away.`;
                 }
                 return '👉 Click something in the list or a spot on the Sky Map, then press Go.';
             case 2:

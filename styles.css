@@ -376,6 +376,18 @@ input:focus {
     50% { box-shadow: 0 0 0 8px rgba(255, 216, 77, 0); border-color: var(--accent); }
 }
 
+.map-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.map-footer .caption {
+    margin: 0;
+}
+
 .dpad {
     display: grid;
     grid-template-columns: repeat(3, 44px);
@@ -609,6 +621,17 @@ canvas {
 
 .help-steps li {
     margin-bottom: 6px;
+}
+
+.unlock-card input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.unlock-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 #help-close {
