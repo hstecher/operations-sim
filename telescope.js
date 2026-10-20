@@ -1588,7 +1588,7 @@ class TelescopeSimulator {
         const ra = this.parseRA(this.ui.raInput.value);
         const dec = this.parseDec(this.ui.decInput.value);
         if (isNaN(ra) || isNaN(dec)) {
-            this.ui.coordError.textContent = 'Try RA like 10:00 (0 to 23:59) and Dec like +25 (-90 to +90).';
+            this.ui.coordError.textContent = 'Try RA like 10:30 or 10.30 (0 to 23:59) and Dec like +25:30 or +25.30 (-90 to +90).';
             return;
         }
         this.ui.coordError.textContent = '';
@@ -1784,23 +1784,26 @@ class TelescopeSimulator {
 
     // ---------- Coordinates ----------
 
-    // Accepts "10:00", "10 00", "10h00m" or decimal hours like "10.5"
+    // Hours and minutes: "10:30", "10.30", "10 30", "10h30m" or just "10".
+    // "." separates minutes (not a decimal) since kids copy what the screen shows.
     parseRA(raString) {
-        const m = raString.trim().match(/^(\d{1,2}(?:\.\d+)?)(?:\s*[:h\s]\s*(\d{1,2}(?:\.\d+)?)\s*m?)?$/i);
+        const m = raString.trim().match(/^(\d{1,2})(?:\s*[:h.\s]\s*(\d{1,2})\s*m?)?$/i);
         if (!m) return NaN;
-        const hours = parseFloat(m[1]);
-        const minutes = m[2] ? parseFloat(m[2]) : 0;
+        const hours = parseInt(m[1], 10);
+        const minutes = m[2] ? parseInt(m[2], 10) : 0;
         if (hours >= 24 || minutes >= 60) return NaN;
         return (hours + minutes / 60) * 15;  // Convert to degrees
     }
 
-    // Accepts "+25", "-13.39" or degrees and minutes like "+25:30" / "25°30'"
+    // Degrees and minutes: "+25:30", "+25.30", "25 30", "25°30'" or just "-13".
+    // "." separates minutes (not a decimal): kids have no ° key, so "+12.23" means +12°23'.
     parseDec(decString) {
-        const m = decString.trim().match(/^([+-]?)\s*(\d{1,2}(?:\.\d+)?)(?:\s*[:°\s]\s*(\d{1,2}(?:\.\d+)?)\s*'?)?°?$/);
+        const m = decString.trim().match(/^([+\-\u2212]?)\s*(\d{1,2})(?:\s*[:°.\s]\s*(\d{1,2})\s*'?)?\s*°?$/);
         if (!m) return NaN;
-        const value = parseFloat(m[2]) + (m[3] ? parseFloat(m[3]) / 60 : 0);
-        if (value > 90 || (m[3] && parseFloat(m[3]) >= 60)) return NaN;
-        return m[1] === '-' ? -value : value;
+        const minutes = m[3] ? parseInt(m[3], 10) : 0;
+        const value = parseInt(m[2], 10) + minutes / 60;
+        if (value > 90 || minutes >= 60) return NaN;
+        return m[1] && m[1] !== '+' ? -value : value;
     }
 
     // Rounded (not truncated) so typing the shown value back lands within the 0.5° telescope view
