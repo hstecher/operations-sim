@@ -1592,6 +1592,9 @@ class TelescopeSimulator {
             return;
         }
         this.ui.coordError.textContent = '';
+        // Show what they typed in proper notation (12.31 -> 12:31, +12.23 -> +12°23')
+        this.ui.raInput.value = this.formatRA(ra);
+        this.ui.decInput.value = this.formatDec(dec);
         this.selectedTarget = this.pickedCoords ? this.pickedCoords.target : null;
         this.refreshTargetCards();
         this.startSlew(ra, dec);
