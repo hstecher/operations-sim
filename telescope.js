@@ -1440,9 +1440,9 @@ class TelescopeSimulator {
         return !cat.kinds || cat.kinds.includes(target.kind);
     }
 
-    // Names and pictures stay secret until the telescope has looked at them (or the teacher unlocks)
+    // Names and pictures stay secret until photographed (or the teacher unlocks)
     isHidden(target) {
-        return !this.unlocked && !this.seen.has(target.id) && !this.collected.has(target.id);
+        return !this.unlocked && !this.collected.has(target.id);
     }
 
     nameOf(target, fallback) {
@@ -1845,14 +1845,10 @@ class TelescopeSimulator {
         if (best) this.lostTarget = null;
         this.currentTarget = best;
 
-        // Reveal once the telescope settles on it (not while sweeping past during a slew)
-        if (best && !this.slewing && !this.seen.has(best.id)) {
-            const wasHidden = this.isHidden(best);
+        if (best && best.kind === 'mystery' && !this.slewing && !this.seen.has(best.id)) {
             this.seen.add(best.id);
             saveSet(SEEN_KEY, this.seen);
-            this.refreshTargetCards();
-            if (best.kind === 'mystery') this.showToast('🛸 Whoa! What is THAT?! Take a picture, quick!', 5000);
-            else if (wasHidden) this.showToast(`🔭 You found ${best.name}!`, 4000);
+            this.showToast('🛸 Whoa! What is THAT?! Take a picture, quick!', 5000);
         }
     }
 
@@ -2280,7 +2276,7 @@ class TelescopeSimulator {
             case 2:
                 return `🌍 The Earth is spinning, so ${name} is drifting away! Press <b>Follow</b> (or the Space bar).`;
             case 3:
-                return `🎯 ${this.currentTarget ? name + ' is' : 'The view is'} wobbling a little. Press <b>Guiding</b> to hold it still.`;
+                return `🎯 ${this.currentTarget && !this.isHidden(this.currentTarget) ? name + ' is' : 'The view is'} wobbling a little. Press <b>Guiding</b> to hold it still.`;
             case 4:
                 return `✨ The air is making ${name} blurry and shimmery. Press <b>AO</b> to sharpen it!`;
             case 5:
@@ -2350,6 +2346,9 @@ class TelescopeSimulator {
 
         let caption;
         if (this.slewing) caption = '🚀 On the way…';
+        else if (this.currentTarget && this.isHidden(this.currentTarget)) {
+            caption = `<strong>${this.currentTarget.kind === 'mystery' ? '🛸' : '❓'} Something is here!</strong> Take a picture to find out what it is.`;
+        }
         else if (this.currentTarget && this.currentTarget.kind === 'mystery') caption = `<strong>🛸 ${this.currentTarget.name}</strong> ${this.currentTarget.fact}`;
         else if (this.currentTarget) {
             caption = `<strong>${this.currentTarget.name}</strong> — ${this.currentTarget.fact}`;
