@@ -525,6 +525,13 @@ canvas {
     font-weight: 600;
 }
 
+.gallery-item .coords {
+    margin-top: 2px;
+    font-family: ui-monospace, Menlo, monospace;
+    color: var(--accent);
+    white-space: pre;
+}
+
 .gallery-item .info {
     margin-top: 2px;
     font-size: 0.85em;

@@ -1115,6 +1115,7 @@ class TelescopeSimulator {
         this.viewDec = this.telescopeDec;
         this.targetRa = null;
         this.targetDec = null;
+        this.pickedCoords = null;  // Sky Map click waiting for Go
         this.slewing = false;
         this.tracking = false;
         this.guiding = false;
@@ -1210,6 +1211,7 @@ class TelescopeSimulator {
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') this.goToCoordinates();
             });
+            input.addEventListener('input', () => { this.pickedCoords = null; });
         });
 
         document.getElementById('reset-collection').addEventListener('click', () => {
@@ -1222,7 +1224,7 @@ class TelescopeSimulator {
             }
         });
 
-        // Sky Map: click to go there, snapping to a nearby named target
+        // Sky Map: click fills in RA/Dec (snapping to a nearby named target) so kids press Go themselves
         this.acquisitionCanvas.addEventListener('click', (e) => {
             const canvas = this.acquisitionCanvas;
             const rect = canvas.getBoundingClientRect();
@@ -1247,13 +1249,10 @@ class TelescopeSimulator {
                     bestDist = dist;
                 }
             });
-            if (best) {
-                this.goToTarget(best);
-            } else {
-                this.selectedTarget = null;
-                this.refreshTargetCards();
-                this.startSlew(sky.ra, sky.dec);
-            }
+            // Anonymous: no name or selection, so what's there stays a surprise
+            this.selectedTarget = null;
+            this.refreshTargetCards();
+            this.fillCoordinates(best ? this.targetPosition(best) : sky, null);
         });
 
         document.getElementById('finder-zoom-in').addEventListener('click', () => {
@@ -1333,7 +1332,7 @@ class TelescopeSimulator {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'target-card';
-            button.addEventListener('click', () => this.goToTarget(t));
+            button.addEventListener('click', () => this.pickTarget(t));
             this.ui.targetList.appendChild(button);
             this.targetButtons.set(t.id, button);
         });
@@ -1387,7 +1386,8 @@ class TelescopeSimulator {
 
     // ---------- Actions ----------
 
-    goToTarget(target) {
+    // List click: fill in RA/Dec so kids press Go themselves
+    pickTarget(target) {
         if (this.isHidden(target)) {
             this.showToast('🕵️ Clue: ' + target.clue, 7000);
             this.ui.raInput.focus();
@@ -1395,8 +1395,16 @@ class TelescopeSimulator {
         }
         this.selectedTarget = target;
         this.refreshTargetCards();
-        const pos = this.targetPosition(target);
-        this.startSlew(pos.ra, pos.dec);
+        this.fillCoordinates(this.targetPosition(target), target);
+    }
+
+    // target is kept so Go can chase moving things (satellites); null for anonymous Sky Map picks
+    fillCoordinates(pos, target) {
+        this.pickedCoords = { ra: pos.ra, dec: pos.dec, target };
+        this.ui.raInput.value = this.formatRA(pos.ra);
+        this.ui.decInput.value = this.formatDec(pos.dec);
+        this.ui.coordError.textContent = '';
+        this.showToast('📍 RA and Dec filled in. Press Go to point there!');
     }
 
     goToCoordinates() {
@@ -1407,7 +1415,7 @@ class TelescopeSimulator {
             return;
         }
         this.ui.coordError.textContent = '';
-        this.selectedTarget = null;
+        this.selectedTarget = this.pickedCoords ? this.pickedCoords.target : null;
         this.refreshTargetCards();
         this.startSlew(ra, dec);
     }
@@ -1416,6 +1424,7 @@ class TelescopeSimulator {
         this.targetRa = (ra + 360) % 360;
         this.targetDec = clamp(dec, -90, 90);
         this.slewing = true;
+        this.pickedCoords = null;
         this.guiding = false;  // Turn off guiding and AO when slewing starts
         this.ao = false;
         this.lostTarget = null;
@@ -1496,7 +1505,10 @@ class TelescopeSimulator {
         const slug = ex.target ? ex.target.id.toLowerCase() : 'exposure';
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const randomStr = Math.random().toString(36).substring(2, 8);
-        const filename = `${slug}_${timestamp}_${randomStr}.png`;
+        // RA/Dec ride along in the name (e.g. _ra0535_decm0523) so the Gallery can show them
+        const raTag = this.formatRA(this.telescopeRa).replace(':', '');
+        const decTag = this.formatDec(this.telescopeDec).replace(/[°']/g, '').replace('+', 'p').replace('-', 'm');
+        const filename = `${slug}_${timestamp}_${randomStr}_ra${raTag}_dec${decTag}.png`;
 
         const flash = (text) => {
             button.textContent = text;
@@ -1558,7 +1570,15 @@ class TelescopeSimulator {
                     const info = document.createElement('div');
                     info.className = 'info';
                     info.textContent = new Date(file.created).toLocaleString();
-                    item.append(img, nameEl, info);
+                    item.append(img, nameEl);
+                    const c = file.filename.match(/_ra(\d{2})(\d{2})_dec([pm])(\d{2})(\d{2})\.png$/);
+                    if (c) {
+                        const coords = document.createElement('div');
+                        coords.className = 'coords';
+                        coords.textContent = `RA ${c[1]}:${c[2]}   Dec ${c[3] === 'p' ? '+' : '-'}${c[4]}°${c[5]}'`;
+                        item.append(coords);
+                    }
+                    item.append(info);
                     gallery.appendChild(item);
                 });
             })
@@ -1604,18 +1624,19 @@ class TelescopeSimulator {
         return m[1] === '-' ? -value : value;
     }
 
+    // Rounded (not truncated) so typing the shown value back lands within the 0.5° telescope view
     formatRA(ra) {
-        const hours = ra / 15;  // Convert to hours
-        const h = Math.floor(hours);
-        const m = Math.floor((hours - h) * 60);
+        const totalMin = Math.round(((ra % 360 + 360) % 360) / 15 * 60) % (24 * 60);
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
 
     formatDec(dec) {
         const sign = dec >= 0 ? '+' : '-';
-        const absDec = Math.abs(dec);
-        const d = Math.floor(absDec);
-        const m = Math.floor((absDec - d) * 60);
+        const totalMin = Math.round(Math.abs(dec) * 60);
+        const d = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
         return `${sign}${d.toString().padStart(2, '0')}°${m.toString().padStart(2, '0')}'`;
     }
 
@@ -1890,34 +1911,37 @@ class TelescopeSimulator {
             if (this.isOnCanvas(pos, canvas, 10)) obj.draw(ctx, pos, scale);
         });
 
-        // Labels for things to find (the mystery object stays a secret)
-        ctx.font = '11px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        // Selected target first, then planets, so they win when labels would overlap
-        const placed = [];
-        const order = [...this.targets].sort((a, b) =>
-            (b === this.selectedTarget) - (a === this.selectedTarget) || (b.kind === 'planet') - (a.kind === 'planet'));
-        order.forEach(t => {
-            if (t.kind === 'mystery') return;
-            const pos = this.targetPosition(t);
+        // No name labels, so finding things is a surprise. Ring the target picked from the list.
+        if (this.selectedTarget) {
+            const pos = this.targetPosition(this.selectedTarget);
             const offset = projectSky(pos.ra, pos.dec, this.telescopeRa, this.telescopeDec);
-            if (!offset) return;
-            const x = canvas.width / 2 + (offset.x / fov) * canvas.width;
-            const y = canvas.height / 2 - (offset.y / fov) * canvas.height;
-            if (x < -20 || x > canvas.width || y < 0 || y > canvas.height + 10) return;
-            if (t === this.selectedTarget) {
+            if (offset) {
                 ctx.strokeStyle = '#ffd84d';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                ctx.arc(x, y, 9, 0, Math.PI * 2);
+                ctx.arc(canvas.width / 2 + (offset.x / fov) * canvas.width,
+                        canvas.height / 2 - (offset.y / fov) * canvas.height, 9, 0, Math.PI * 2);
                 ctx.stroke();
             }
-            const box = { x: x + 8, y: y - 17, w: ctx.measureText(t.name).width, h: 13 };
-            if (placed.some(o => box.x < o.x + o.w && o.x < box.x + box.w && box.y < o.y + o.h && o.y < box.y + box.h)) return;
-            placed.push(box);
-            ctx.fillStyle = this.collected.has(t.id) ? 'rgba(61, 220, 132, 0.9)' : 'rgba(255, 230, 150, 0.85)';
-            ctx.fillText(t.name, x + 8, y - 6);
-        });
+        }
+
+        // Spot picked on the map, waiting for Go
+        if (this.pickedCoords && !this.slewing) {
+            const offset = projectSky(this.pickedCoords.ra, this.pickedCoords.dec, this.telescopeRa, this.telescopeDec);
+            if (offset) {
+                const x = canvas.width / 2 + (offset.x / fov) * canvas.width;
+                const y = canvas.height / 2 - (offset.y / fov) * canvas.height;
+                ctx.strokeStyle = '#4dd2ff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, Math.PI * 2);
+                [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+                    ctx.moveTo(x + dx * 4, y + dy * 4);
+                    ctx.lineTo(x + dx * 11, y + dy * 11);
+                });
+                ctx.stroke();
+            }
+        }
 
         // Where the go-to is heading
         if (this.slewing) {
@@ -2177,7 +2201,7 @@ class TelescopeSimulator {
                 if (this.lostTarget && this.simulationTime - this.lostTarget.time < 8) {
                     return `😮 Oops! The sky drifted and ${this.lostTarget.target.name} slid away. Click it again, then press Follow right away.`;
                 }
-                return '👉 Pick something to look at from the list, or click anywhere on the Sky Map.';
+                return '👉 Click something in the list or a spot on the Sky Map, then press Go.';
             case 2:
                 return `🌍 The Earth is spinning, so ${name} is drifting away! Press <b>Follow</b> (or the Space bar).`;
             case 3:
