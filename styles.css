@@ -628,6 +628,12 @@ canvas {
     box-sizing: border-box;
 }
 
+.teacher-actions {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+}
+
 .unlock-actions {
     display: flex;
     justify-content: flex-end;

@@ -122,8 +122,8 @@
 
     <div id="unlock-overlay" class="overlay" hidden>
         <form id="unlock-form" class="help-card unlock-card" role="dialog" aria-labelledby="unlock-title">
-            <h2 id="unlock-title">🔒 Teacher unlock</h2>
-            <p>Enter the code to show every name and picture.</p>
+            <h2 id="unlock-title">🔒 Teacher sign in</h2>
+            <p>Enter the teacher code.</p>
             <input type="password" id="unlock-code" autocomplete="off" aria-label="Unlock code">
             <p id="unlock-error" class="coord-error"></p>
             <div class="unlock-actions">
@@ -131,6 +131,24 @@
                 <button type="submit" class="big-button">Unlock</button>
             </div>
         </form>
+    </div>
+
+    <div id="teacher-overlay" class="overlay" hidden>
+        <div class="help-card unlock-card" role="dialog" aria-labelledby="teacher-title">
+            <h2 id="teacher-title">🎓 Teacher controls</h2>
+            <p>For every student: <b id="class-status"></b></p>
+            <div class="teacher-actions">
+                <button type="button" id="class-unlock">🔓 Unlock all names for everyone</button>
+                <button type="button" id="class-lock">🔒 Hide names again for everyone</button>
+                <button type="button" id="class-reset">♻️ Reset everyone's collection</button>
+            </div>
+            <p class="panel-sub">The Gallery is shared by the whole class and is never cleared.</p>
+            <p id="teacher-error" class="coord-error"></p>
+            <div class="unlock-actions">
+                <button type="button" id="teacher-logout">Sign out</button>
+                <button type="button" id="teacher-close" class="big-button">Done</button>
+            </div>
+        </div>
     </div>
 
     <div id="help-overlay" class="overlay" hidden>

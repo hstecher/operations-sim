@@ -58,7 +58,9 @@ const SATELLITE_MAGNITUDE = 2;  // Fairly bright
 const COLLECTED_KEY = 'telescopeExplorer.collected';
 const SEEN_KEY = 'telescopeExplorer.seen';
 const HELP_SEEN_KEY = 'telescopeExplorer.helpSeen';
-const UNLOCKED_KEY = 'telescopeExplorer.unlocked';  // teacher code entered: show every name and picture
+const TEACHER_TOKEN_KEY = 'telescopeExplorer.teacherToken';  // signed in as teacher on this device
+const APPLIED_RESET_KEY = 'telescopeExplorer.appliedReset';  // last class reset this device has done
+const CLASS_POLL_MS = 10000;  // how often to check the teacher's class-wide switches
 
 // Planet colors (for future use)
 const PLANET_COLORS = {
@@ -1141,12 +1143,24 @@ class TelescopeSimulator {
 
         this.collected = loadSet(COLLECTED_KEY);
         this.seen = loadSet(SEEN_KEY);
-        this.unlocked = false;
-        try { this.unlocked = localStorage.getItem(UNLOCKED_KEY) === '1'; } catch (e) {}
+        this.teacherToken = null;
+        this.appliedReset = null;
+        try {
+            this.teacherToken = localStorage.getItem(TEACHER_TOKEN_KEY);
+            this.appliedReset = localStorage.getItem(APPLIED_RESET_KEY);
+        } catch (e) {}
+        this.unlocked = !!this.teacherToken;  // teacher: every name shown on this device
+        this.classUnlocked = false;           // teacher unlocked every name for the whole class
+        this.classStateLoaded = false;
         this.uiCache = {};
 
         this.setupInputHandlers();
         this.buildTargetList();
+        this.pollClassState();
+        setInterval(() => this.pollClassState(), CLASS_POLL_MS);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') this.pollClassState();
+        });
 
         let helpSeen = false;
         try { helpSeen = localStorage.getItem(HELP_SEEN_KEY) === '1'; } catch (e) {}
@@ -1195,7 +1209,7 @@ class TelescopeSimulator {
         ui.galleryViewButton.addEventListener('click', () => this.showView('gallery'));
         document.getElementById('help-button').addEventListener('click', () => this.showHelp());
         document.getElementById('help-close').addEventListener('click', () => this.hideHelp());
-        this.setupUnlock();
+        this.setupTeacher();
         ui.helpOverlay.addEventListener('click', (e) => {
             if (e.target === ui.helpOverlay) this.hideHelp();
         });
@@ -1315,35 +1329,56 @@ class TelescopeSimulator {
         window.addEventListener('blur', () => this.held.clear());
     }
 
-    // Teacher code (checked by the server) unlocks every name and picture on this device
-    setupUnlock() {
+    // Teacher sign-in: the server checks the code and returns a token. Signed in, this device shows
+    // every name, and the teacher controls can unlock, hide or reset for the whole class.
+    setupTeacher() {
         const button = document.getElementById('unlock-button');
-        const overlay = document.getElementById('unlock-overlay');
+        const login = document.getElementById('unlock-overlay');
         const form = document.getElementById('unlock-form');
         const code = document.getElementById('unlock-code');
-        const error = document.getElementById('unlock-error');
-        const label = () => { button.textContent = this.unlocked ? '🔓 Lock names' : '🔒 Teacher'; };
-        const close = () => { overlay.hidden = true; code.value = ''; error.textContent = ''; };
-        const setUnlocked = (on) => {
-            this.unlocked = on;
-            try { on ? localStorage.setItem(UNLOCKED_KEY, '1') : localStorage.removeItem(UNLOCKED_KEY); } catch (e) {}
-            label();
+        const loginError = document.getElementById('unlock-error');
+        const panel = document.getElementById('teacher-overlay');
+        const panelError = document.getElementById('teacher-error');
+        const status = document.getElementById('class-status');
+
+        const closeLogin = () => { login.hidden = true; code.value = ''; loginError.textContent = ''; };
+        const closePanel = () => { panel.hidden = true; panelError.textContent = ''; };
+        this.renderTeacher = () => {
+            button.textContent = this.unlocked ? '🎓 Teacher' : '🔒 Teacher';
+            status.textContent = this.classUnlocked ? 'all names unlocked' : 'names hidden until photographed';
+        };
+        const setToken = (token) => {
+            this.teacherToken = token;
+            this.unlocked = !!token;
+            try {
+                if (token) localStorage.setItem(TEACHER_TOKEN_KEY, token);
+                else localStorage.removeItem(TEACHER_TOKEN_KEY);
+            } catch (e) {}
+            this.renderTeacher();
             this.refreshTargetCards();
         };
-        label();
+        this.renderTeacher();
 
         button.addEventListener('click', () => {
             if (this.unlocked) {
-                setUnlocked(false);
-                this.showToast('🔒 Names hidden again.');
-            } else {
-                overlay.hidden = false;
-                code.focus();
+                panel.hidden = false;
+                return;
             }
+            login.hidden = false;
+            code.focus();
         });
-        document.getElementById('unlock-cancel').addEventListener('click', close);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-        overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        document.getElementById('unlock-cancel').addEventListener('click', closeLogin);
+        document.getElementById('teacher-close').addEventListener('click', closePanel);
+        document.getElementById('teacher-logout').addEventListener('click', () => {
+            closePanel();
+            setToken(null);
+            this.showToast('🔒 Signed out. Names are hidden again on this screen.');
+        });
+        [[login, closeLogin], [panel, closePanel]].forEach(([overlay, close]) => {
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+            overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        });
+
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             fetch('/unlock', {
@@ -1354,16 +1389,87 @@ class TelescopeSimulator {
                 .then(response => response.json())
                 .then(data => {
                     if (!data.success) {
-                        error.textContent = 'That code is not right.';
+                        loginError.textContent = 'That code is not right.';
                         code.select();
                         return;
                     }
-                    close();
-                    setUnlocked(true);
-                    this.showToast('🔓 All names and pictures unlocked.');
+                    closeLogin();
+                    setToken(data.token);
+                    panel.hidden = false;
                 })
-                .catch(() => { error.textContent = 'Could not check the code. Try again.'; });
+                .catch(() => { loginError.textContent = 'Could not check the code. Try again.'; });
         });
+
+        const classAction = (action, message) => {
+            panelError.textContent = '';
+            fetch('/class_state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: this.teacherToken, action })
+            })
+                .then(response => {
+                    if (response.status === 403) {
+                        // Code changed on the server since this device signed in
+                        closePanel();
+                        setToken(null);
+                        this.showToast('🔒 Please sign in again.');
+                        return;
+                    }
+                    return response.json().then(data => {
+                        if (!data.success) {
+                            panelError.textContent = data.error || 'That did not work. Try again.';
+                            return;
+                        }
+                        this.applyClassState(data);
+                        this.showToast(message);
+                    });
+                })
+                .catch(() => { panelError.textContent = 'Could not reach the server. Try again.'; });
+        };
+        document.getElementById('class-unlock').addEventListener('click', () =>
+            classAction('unlockAll', '🔓 Every name is unlocked for everyone.'));
+        document.getElementById('class-lock').addEventListener('click', () =>
+            classAction('lockAll', '🔒 Names are hidden again for everyone.'));
+        document.getElementById('class-reset').addEventListener('click', () => {
+            if (confirm("Reset everyone's collection? Every student's checkmarks will be cleared. The Gallery stays.")) {
+                classAction('resetAll', "♻️ Everyone's collection was reset.");
+            }
+        });
+    }
+
+    // Class-wide switches from the teacher. Every device checks every CLASS_POLL_MS.
+    pollClassState() {
+        fetch('/class_state', { cache: 'no-store' })
+            .then(response => response.json())
+            .then(state => this.applyClassState(state))
+            .catch(() => {});  // offline: keep the last known state
+    }
+
+    applyClassState(state) {
+        let changed = false;
+        // A new resetId means the teacher reset everyone: clear this device's collection once
+        if (state.resetId && state.resetId !== this.appliedReset) {
+            const hadProgress = this.collected.size > 0;
+            this.appliedReset = state.resetId;
+            this.collected.clear();
+            this.seen.clear();
+            saveSet(COLLECTED_KEY, this.collected);
+            saveSet(SEEN_KEY, this.seen);
+            try { localStorage.setItem(APPLIED_RESET_KEY, state.resetId); } catch (e) {}
+            if (hadProgress) this.showToast('♻️ Your teacher started a fresh collection!', 5000);
+            changed = true;
+        }
+        const unlockAll = !!state.unlockAll;
+        if (unlockAll !== this.classUnlocked) {
+            if (unlockAll && this.classStateLoaded && !this.unlocked) {
+                this.showToast('🔓 Your teacher unlocked every name!', 5000);
+            }
+            this.classUnlocked = unlockAll;
+            changed = true;
+        }
+        this.classStateLoaded = true;
+        if (changed) this.refreshTargetCards();
+        this.renderTeacher();
     }
 
     buildTargetList() {
@@ -1442,7 +1548,7 @@ class TelescopeSimulator {
 
     // Names and pictures stay secret until photographed (or the teacher unlocks)
     isHidden(target) {
-        return !this.unlocked && !this.collected.has(target.id);
+        return !this.unlocked && !this.classUnlocked && !this.collected.has(target.id);
     }
 
     nameOf(target, fallback) {
@@ -1554,7 +1660,6 @@ class TelescopeSimulator {
         const ex = this.exposure;
         if (ex.state === 'idle') return;
         const button = this.ui.saveButton;
-        const name = ex.target ? ex.target.name : 'Sky picture';
 
         // Copy the picture and add a label strip at the bottom
         const tempCanvas = document.createElement('canvas');
@@ -1567,8 +1672,9 @@ class TelescopeSimulator {
         tempCtx.font = '13px monospace';
         tempCtx.fillStyle = '#FFFFFF';
         tempCtx.textAlign = 'center';
+        // No name in the picture: the Gallery is shared and names stay secret until each kid unlocks them
         tempCtx.fillText(
-            `${name} | RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
+            `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
             tempCanvas.width / 2,
             tempCanvas.height - 10
         );
@@ -1634,10 +1740,12 @@ class TelescopeSimulator {
                     item.className = 'gallery-item';
                     const img = document.createElement('img');
                     img.src = file.url;
-                    img.alt = target ? target.name : 'Sky picture';
+                    // Shared with the class: only name things this viewer has unlocked
+                    const label = !target ? 'Sky picture' : this.isHidden(target) ? '❓ ???' : target.name;
+                    img.alt = label;
                     const nameEl = document.createElement('div');
                     nameEl.className = 'name';
-                    nameEl.textContent = target ? target.name : 'Sky picture';
+                    nameEl.textContent = label;
                     const info = document.createElement('div');
                     info.className = 'info';
                     info.textContent = new Date(file.created).toLocaleString();

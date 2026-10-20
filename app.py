@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
+import hashlib
 import hmac
+import json
 import os
+import secrets
 from datetime import datetime
 import zipfile
 import io
@@ -16,6 +19,22 @@ UNLOCK_CODE = os.environ.get('UNLOCK_CODE', 'telescope')
 UPLOAD_FOLDER = 'exposures'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# Class-wide switches the teacher controls. Kept beside the gallery so it persists if that
+# folder is a mounted bucket. resetId: changes on each "reset everyone"; clients clear their
+# collection when they see a new one. unlockAll: show every name to everyone.
+CLASS_STATE_FILE = os.path.join(UPLOAD_FOLDER, 'class_state.json')
+
+def teacher_token():
+    """Proof of the teacher code, handed out by /unlock and required for class changes."""
+    return hmac.new(UNLOCK_CODE.lower().encode(), b'teacher', hashlib.sha256).hexdigest()
+
+def load_class_state():
+    try:
+        with open(CLASS_STATE_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {'resetId': None, 'unlockAll': False}
 
 # Serve the main page
 @app.route('/')
@@ -34,7 +53,32 @@ def serve_exposure(filename):
 @app.route('/unlock', methods=['POST'])
 def unlock():
     code = str((request.get_json(silent=True) or {}).get('code', '')).strip().lower()
-    return jsonify({'success': hmac.compare_digest(code.encode(), UNLOCK_CODE.lower().encode())})
+    if not hmac.compare_digest(code.encode(), UNLOCK_CODE.lower().encode()):
+        return jsonify({'success': False})
+    return jsonify({'success': True, 'token': teacher_token()})
+
+@app.route('/class_state', methods=['GET'])
+def get_class_state():
+    return jsonify(load_class_state())
+
+@app.route('/class_state', methods=['POST'])
+def set_class_state():
+    data = request.get_json(silent=True) or {}
+    if not hmac.compare_digest(str(data.get('token', '')).encode(), teacher_token().encode()):
+        return jsonify({'success': False, 'error': 'Not signed in as teacher'}), 403
+    state = load_class_state()
+    action = data.get('action')
+    if action == 'unlockAll':
+        state['unlockAll'] = True
+    elif action == 'lockAll':
+        state['unlockAll'] = False
+    elif action == 'resetAll':
+        state = {'resetId': secrets.token_hex(4), 'unlockAll': False}
+    else:
+        return jsonify({'success': False, 'error': 'Unknown action'}), 400
+    with open(CLASS_STATE_FILE, 'w') as f:
+        json.dump(state, f)
+    return jsonify({'success': True, **state})
 
 @app.route('/list_exposures')
 def list_exposures():
