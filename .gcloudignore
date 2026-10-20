@@ -1,0 +1,6 @@
+.gcloudignore
+.venv/
+exposures/
+.git/
+__pycache__/
+.DS_Store
