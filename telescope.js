@@ -60,7 +60,11 @@ const SEEN_KEY = 'telescopeExplorer.seen';
 const HELP_SEEN_KEY = 'telescopeExplorer.helpSeen';
 const TEACHER_TOKEN_KEY = 'telescopeExplorer.teacherToken';  // signed in as teacher on this device
 const APPLIED_RESET_KEY = 'telescopeExplorer.appliedReset';  // last class reset this device has done
-const CLASS_POLL_MS = 10000;  // how often to check the teacher's class-wide switches
+const APPLIED_CLASS_KEY = 'telescopeExplorer.appliedClass';  // last "new class" this device has done
+const STUDENT_NAME_KEY = 'telescopeExplorer.studentName';  // shown on the teacher's leaderboard
+const STUDENT_ID_KEY = 'telescopeExplorer.studentId';      // random, tells same-named students apart
+const CLASS_POLL_MS = 10000;  // how often each page checks in (count up, teacher switches down)
+const LEADERBOARD_POLL_MS = 5000;  // leaderboard refresh while the teacher panel is open
 
 // Planet colors (for future use)
 const PLANET_COLORS = {
@@ -1145,10 +1149,22 @@ class TelescopeSimulator {
         this.seen = loadSet(SEEN_KEY);
         this.teacherToken = null;
         this.appliedReset = null;
+        this.appliedClass = null;
+        this.studentName = '';
+        this.studentId = null;
         try {
             this.teacherToken = localStorage.getItem(TEACHER_TOKEN_KEY);
             this.appliedReset = localStorage.getItem(APPLIED_RESET_KEY);
+            this.appliedClass = localStorage.getItem(APPLIED_CLASS_KEY);
+            this.studentName = localStorage.getItem(STUDENT_NAME_KEY) || '';
+            this.studentId = localStorage.getItem(STUDENT_ID_KEY);
         } catch (e) {}
+        if (!this.studentId) {
+            this.studentId = window.crypto && crypto.randomUUID
+                ? crypto.randomUUID()
+                : Math.random().toString(36).slice(2) + Date.now().toString(36);
+            try { localStorage.setItem(STUDENT_ID_KEY, this.studentId); } catch (e) {}
+        }
         this.unlocked = !!this.teacherToken;  // teacher: every name shown on this device
         this.classUnlocked = false;           // teacher unlocked every name for the whole class
         this.classStateLoaded = false;
@@ -1166,6 +1182,7 @@ class TelescopeSimulator {
         try { helpSeen = localStorage.getItem(HELP_SEEN_KEY) === '1'; } catch (e) {}
         // Skip the welcome screen when driven by automation (telescope_control.py)
         if (!helpSeen && !navigator.webdriver) this.showHelp();
+        if (!this.studentName && !this.unlocked && !navigator.webdriver) this.askName();
 
         // Start the animation loop
         this.lastUpdate = performance.now();
@@ -1210,6 +1227,7 @@ class TelescopeSimulator {
         document.getElementById('help-button').addEventListener('click', () => this.showHelp());
         document.getElementById('help-close').addEventListener('click', () => this.hideHelp());
         this.setupTeacher();
+        this.setupStudentName();
         ui.helpOverlay.addEventListener('click', (e) => {
             if (e.target === ui.helpOverlay) this.hideHelp();
         });
@@ -1341,8 +1359,55 @@ class TelescopeSimulator {
         const panelError = document.getElementById('teacher-error');
         const status = document.getElementById('class-status');
 
-        const closeLogin = () => { login.hidden = true; code.value = ''; loginError.textContent = ''; };
-        const closePanel = () => { panel.hidden = true; panelError.textContent = ''; };
+        const board = document.getElementById('leaderboard');
+
+        const loadBoard = () => {
+            fetch('/leaderboard', { headers: { 'X-Teacher-Token': this.teacherToken || '' }, cache: 'no-store' })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) return;
+                    board.innerHTML = '';
+                    if (data.students.length === 0) {
+                        const li = document.createElement('li');
+                        li.className = 'empty';
+                        li.textContent = 'No students yet. They show up after typing their names.';
+                        board.append(li);
+                        return;
+                    }
+                    data.students.forEach(student => {
+                        const li = document.createElement('li');
+                        const name = document.createElement('span');
+                        name.textContent = student.name;
+                        const found = document.createElement('span');
+                        found.className = 'found';
+                        found.textContent = `${student.found} / ${this.targets.length}`;
+                        li.append(name, found);
+                        board.append(li);
+                    });
+                })
+                .catch(() => {});
+        };
+        const openPanel = () => {
+            panel.hidden = false;
+            loadBoard();
+            clearInterval(this.boardTimer);
+            this.boardTimer = setInterval(loadBoard, LEADERBOARD_POLL_MS);
+        };
+        const closeLogin = () => {
+            login.hidden = true;
+            code.value = '';
+            loginError.textContent = '';
+            if (!this.unlocked && !this.studentName) this.askName();  // backed out: still needs a name
+        };
+        const closePanel = () => {
+            panel.hidden = true;
+            panelError.textContent = '';
+            clearInterval(this.boardTimer);
+        };
+        this.openTeacherLogin = () => {
+            login.hidden = false;
+            code.focus();
+        };
         this.renderTeacher = () => {
             button.textContent = this.unlocked ? '🎓 Teacher' : '🔒 Teacher';
             status.textContent = this.classUnlocked ? 'all names unlocked' : 'names hidden until photographed';
@@ -1355,17 +1420,14 @@ class TelescopeSimulator {
                 else localStorage.removeItem(TEACHER_TOKEN_KEY);
             } catch (e) {}
             this.renderTeacher();
+            if (this.renderName) this.renderName();
             this.refreshTargetCards();
         };
         this.renderTeacher();
 
         button.addEventListener('click', () => {
-            if (this.unlocked) {
-                panel.hidden = false;
-                return;
-            }
-            login.hidden = false;
-            code.focus();
+            if (this.unlocked) openPanel();
+            else this.openTeacherLogin();
         });
         document.getElementById('unlock-cancel').addEventListener('click', closeLogin);
         document.getElementById('teacher-close').addEventListener('click', closePanel);
@@ -1393,9 +1455,9 @@ class TelescopeSimulator {
                         code.select();
                         return;
                     }
-                    closeLogin();
                     setToken(data.token);
-                    panel.hidden = false;
+                    closeLogin();
+                    openPanel();
                 })
                 .catch(() => { loginError.textContent = 'Could not check the code. Try again.'; });
         });
@@ -1421,6 +1483,7 @@ class TelescopeSimulator {
                             return;
                         }
                         this.applyClassState(data);
+                        loadBoard();
                         this.showToast(message);
                     });
                 })
@@ -1435,11 +1498,73 @@ class TelescopeSimulator {
                 classAction('resetAll', "♻️ Everyone's collection was reset.");
             }
         });
+        document.getElementById('class-new').addEventListener('click', () => {
+            if (confirm('Start a new class? This deletes every Gallery picture and clears all student names, ' +
+                        'collections and the leaderboard. It cannot be undone.')) {
+                classAction('newClass', '🧹 All clear. Ready for a new class!');
+            }
+        });
     }
 
-    // Class-wide switches from the teacher. Every device checks every CLASS_POLL_MS.
+    // Students type a name once per device; it labels them on the teacher's leaderboard
+    setupStudentName() {
+        const button = document.getElementById('name-button');
+        const overlay = document.getElementById('name-overlay');
+        const form = document.getElementById('name-form');
+        const input = document.getElementById('student-name');
+        const error = document.getElementById('name-error');
+        this.renderName = () => {
+            button.textContent = this.studentName ? `👤 ${this.studentName}` : '👤 Your name';
+            button.hidden = this.unlocked;  // the teacher isn't on the leaderboard
+        };
+        this.askName = () => {
+            input.value = this.studentName;
+            error.textContent = '';
+            overlay.hidden = false;
+            input.focus();
+        };
+        this.renderName();
+
+        button.addEventListener('click', this.askName);
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = input.value.trim().replace(/\s+/g, ' ');
+            if (!name) {
+                error.textContent = 'Type your name so your teacher can see what you find!';
+                return;
+            }
+            this.setStudentName(name);
+            overlay.hidden = true;
+            this.pollClassState();
+        });
+        document.getElementById('name-teacher').addEventListener('click', () => {
+            overlay.hidden = true;
+            this.openTeacherLogin();
+        });
+    }
+
+    setStudentName(name) {
+        this.studentName = name;
+        try {
+            if (name) localStorage.setItem(STUDENT_NAME_KEY, name);
+            else localStorage.removeItem(STUDENT_NAME_KEY);
+        } catch (e) {}
+        this.renderName();
+    }
+
+    // Check in every CLASS_POLL_MS: send this student's count up, get the teacher's switches back
     pollClassState() {
-        fetch('/class_state', { cache: 'no-store' })
+        fetch('/checkin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: this.studentId,
+                name: this.unlocked ? '' : this.studentName,
+                found: this.collected.size,
+                resetId: this.appliedReset,  // lets the server drop check-ins from before a reset
+                classId: this.appliedClass
+            })
+        })
             .then(response => response.json())
             .then(state => this.applyClassState(state))
             .catch(() => {});  // offline: keep the last known state
@@ -1447,6 +1572,17 @@ class TelescopeSimulator {
 
     applyClassState(state) {
         let changed = false;
+        // A new classId means "new class": also forget this student's name and ask again
+        if (state.classId && state.classId !== this.appliedClass) {
+            const hadName = !!this.studentName;
+            this.appliedClass = state.classId;
+            try { localStorage.setItem(APPLIED_CLASS_KEY, state.classId); } catch (e) {}
+            if (!this.unlocked) {
+                this.setStudentName('');
+                if (hadName) this.askName();
+            }
+            if (this.ui.galleryView.style.display !== 'none') this.loadGallery();  // pictures were cleared
+        }
         // A new resetId means the teacher reset everyone: clear this device's collection once
         if (state.resetId && state.resetId !== this.appliedReset) {
             const hadProgress = this.collected.size > 0;
@@ -1655,6 +1791,7 @@ class TelescopeSimulator {
             this.collected.add(target.id);
             saveSet(COLLECTED_KEY, this.collected);
             this.refreshTargetCards();
+            this.pollClassState();  // update the leaderboard right away
             this.showToast(`📸 You photographed ${target.name}! ⭐ ${this.collected.size} of ${this.targets.length} collected`, 4500);
         }
     }
@@ -1663,6 +1800,7 @@ class TelescopeSimulator {
         const ex = this.exposure;
         if (ex.state === 'idle') return;
         const button = this.ui.saveButton;
+        const name = ex.target ? ex.target.name : 'Sky picture';
 
         // Copy the picture and add a label strip at the bottom
         const tempCanvas = document.createElement('canvas');
@@ -1675,9 +1813,8 @@ class TelescopeSimulator {
         tempCtx.font = '13px monospace';
         tempCtx.fillStyle = '#FFFFFF';
         tempCtx.textAlign = 'center';
-        // No name in the picture: the Gallery is shared and names stay secret until each kid unlocks them
         tempCtx.fillText(
-            `RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
+            `${name} | RA: ${this.formatRA(this.telescopeRa)} | Dec: ${this.formatDec(this.telescopeDec)}`,
             tempCanvas.width / 2,
             tempCanvas.height - 10
         );
@@ -1743,16 +1880,20 @@ class TelescopeSimulator {
                     item.className = 'gallery-item';
                     const img = document.createElement('img');
                     img.src = file.url;
-                    // Shared with the class: only name things this viewer has unlocked
-                    const label = !target ? 'Sky picture' : this.isHidden(target) ? '❓ ???' : target.name;
-                    img.alt = label;
+                    img.alt = target ? target.name : 'Sky picture';
                     const nameEl = document.createElement('div');
                     nameEl.className = 'name';
-                    nameEl.textContent = label;
+                    nameEl.textContent = target ? target.name : 'Sky picture';
                     const info = document.createElement('div');
                     info.className = 'info';
                     info.textContent = new Date(file.created).toLocaleString();
                     item.append(img, nameEl);
+                    if (target && target.fact) {
+                        const fact = document.createElement('div');
+                        fact.className = 'fact';
+                        fact.textContent = target.fact;
+                        item.append(fact);
+                    }
                     const c = file.filename.match(/_ra(\d{2})(\d{2})_dec([pm])(\d{2})(\d{2})\.png$/);
                     if (c) {
                         const coords = document.createElement('div');

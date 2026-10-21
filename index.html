@@ -14,6 +14,7 @@
                 <button id="telescope-view-button" class="active">Telescope</button>
                 <button id="gallery-view-button">🖼️ Gallery</button>
                 <button id="help-button">❓ How to play</button>
+                <button id="name-button" title="Change your name"></button>
                 <button id="unlock-button"></button>
             </nav>
         </header>
@@ -136,19 +137,34 @@
     <div id="teacher-overlay" class="overlay" hidden>
         <div class="help-card unlock-card" role="dialog" aria-labelledby="teacher-title">
             <h2 id="teacher-title">🎓 Teacher controls</h2>
+            <h3>🏆 Leaderboard</h3>
+            <ol id="leaderboard" class="leaderboard"></ol>
             <p>For every student: <b id="class-status"></b></p>
             <div class="teacher-actions">
                 <button type="button" id="class-unlock">🔓 Unlock all names for everyone</button>
                 <button type="button" id="class-lock">🔒 Hide names again for everyone</button>
-                <button type="button" id="class-reset">♻️ Reset everyone's collection</button>
+                <button type="button" id="class-reset">♻️ Reset everyone's collection (keeps the Gallery)</button>
+                <button type="button" id="class-new" class="danger-button">🧹 New class: clear names, collections, leaderboard and Gallery</button>
             </div>
-            <p class="panel-sub">The Gallery is shared by the whole class and is never cleared.</p>
             <p id="teacher-error" class="coord-error"></p>
             <div class="unlock-actions">
                 <button type="button" id="teacher-logout">Sign out</button>
                 <button type="button" id="teacher-close" class="big-button">Done</button>
             </div>
         </div>
+    </div>
+
+    <div id="name-overlay" class="overlay" hidden>
+        <form id="name-form" class="help-card unlock-card" role="dialog" aria-labelledby="name-title">
+            <h2 id="name-title">👋 What's your name?</h2>
+            <p>It goes on the class leaderboard.</p>
+            <input type="text" id="student-name" maxlength="20" autocomplete="off" aria-label="Your name">
+            <p id="name-error" class="coord-error"></p>
+            <div class="unlock-actions">
+                <button type="button" id="name-teacher" class="link-button">I'm the teacher</button>
+                <button type="submit" class="big-button">Let's go!</button>
+            </div>
+        </form>
     </div>
 
     <div id="help-overlay" class="overlay" hidden>

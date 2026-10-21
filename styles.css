@@ -537,6 +537,12 @@ canvas {
     font-weight: 600;
 }
 
+.gallery-item .fact {
+    margin-top: 4px;
+    font-size: 0.9em;
+    line-height: 1.35;
+}
+
 .gallery-item .coords {
     margin-top: 2px;
     font-family: ui-monospace, Menlo, monospace;
@@ -632,6 +638,43 @@ canvas {
     display: grid;
     gap: 8px;
     margin: 12px 0;
+}
+
+.leaderboard {
+    max-height: 220px;
+    overflow-y: auto;
+    margin: 0 0 12px;
+    padding-left: 28px;
+}
+
+.leaderboard li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 0;
+}
+
+.leaderboard .found {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.leaderboard .empty {
+    list-style: none;
+    margin-left: -28px;
+    color: var(--muted);
+}
+
+#name-overlay {
+    z-index: 31;  /* above the welcome help card */
+}
+
+#name-teacher {
+    margin-right: auto;
+}
+
+.danger-button {
+    border-color: var(--danger);
 }
 
 .unlock-actions {
